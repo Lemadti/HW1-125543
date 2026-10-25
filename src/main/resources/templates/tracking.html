@@ -94,7 +94,7 @@
     box.innerHTML = rows.filter(r => r.ok).map(r => r.data).map(p => `
       <a class="row-between" style="color:inherit" href="/tracking/${encodeURIComponent(p.trackingCode)}">
         <span class="row"><span class="icon-tile" style="background:var(--surface-2);color:var(--text-2)">${O.icon('box')}</span>
-          <span><span class="strong">${O.esc(p.trackingCode)}</span><br><span class="muted small">${O.esc(p.lastLocation ? p.lastLocation.label : 'Registered')} → ${O.esc(p.stationName)}, Warsaw</span></span></span>
+          <span><span class="strong">${O.esc(p.trackingCode)}</span><br><span class="muted small">${O.esc(p.lastLocation ? p.lastLocation.label : 'Registered')} → ${O.esc(p.stationName)}, Aveiro</span></span></span>
         <span class="row">${O.stateBadge(p.state)}<span style="color:var(--accent)">${O.icon('arrow-up-right')}</span></span>
       </a>`).join('') || '<p class="muted small">Parcels you track will appear here.</p>';
   }

@@ -15,12 +15,12 @@ class RegisterAndTrackWebIT extends AbstractWebIT {
     void partnerRegistersAMediumParcelAndTracksIt() {
         open("/register");
         page.getByTestId("size-M").click();
-        page.getByTestId("address-input").fill("Chmielna 30, Warsaw");
+        page.getByTestId("address-input").fill("Rua de Coimbra 10, Aveiro");
         page.getByTestId("search-button").click();
         page.getByTestId("station-card").first().click();
 
         // step 2: choose a compartment in the front view
-        assertThat(page.getByTestId("station-title")).hasText("Centrum");
+        assertThat(page.getByTestId("station-title")).hasText("Fórum Aveiro");
         page.getByTestId("cell-M-11").click();
         assertThat(page.getByTestId("selection")).containsText("M-11 · Available to register");
         page.getByTestId("continue").click();
@@ -28,17 +28,17 @@ class RegisterAndTrackWebIT extends AbstractWebIT {
         // step 3: lease and contacts
         assertThat(page.getByTestId("submit")).isDisabled();
         page.getByTestId("duration-72").click();
-        page.getByTestId("sender-name").fill("Anna Kowalska");
-        page.getByTestId("sender-email").fill("anna.kowalska@example.com");
-        page.getByTestId("sender-phone").fill("+48 501 234 567");
-        page.getByTestId("recipient-name").fill("Piotr Nowak");
-        page.getByTestId("recipient-email").fill("piotr.nowak@example.com");
-        page.getByTestId("recipient-phone").fill("+48 602 789 123");
-        assertThat(page.getByTestId("price")).hasText("36.00 PLN");
+        page.getByTestId("sender-name").fill("Ana Silva");
+        page.getByTestId("sender-email").fill("ana.silva@example.com");
+        page.getByTestId("sender-phone").fill("+351 912 345 678");
+        page.getByTestId("recipient-name").fill("João Santos");
+        page.getByTestId("recipient-email").fill("joao.santos@example.com");
+        page.getByTestId("recipient-phone").fill("+351 934 567 890");
+        assertThat(page.getByTestId("price")).hasText("9.00 EUR");
         page.getByTestId("terms").check();
         page.getByTestId("submit").click();
 
-        assertThat(page.getByTestId("confirmation")).containsText("Compartment M-11 reserved at Centrum");
+        assertThat(page.getByTestId("confirmation")).containsText("Compartment M-11 reserved at Fórum Aveiro");
         assertThat(page.getByTestId("drop-off-code")).hasText(Pattern.compile("\\d{6}"));
         String trackingCode = page.getByTestId("tracking-code").textContent();
         assertThat(trackingCode).matches("ORB-\\d{6}-\\d{4}");
@@ -51,8 +51,8 @@ class RegisterAndTrackWebIT extends AbstractWebIT {
 
     @Test
     void reservedCompartmentCannotBeChosen() {
-        register(CENTRUM, "M", "M-07", 24);
-        open("/register/ORB-WAW-014?size=M");
+        register(FORUM, "M", "M-07", 24);
+        open("/register/ORB-AVR-001?size=M");
         page.getByTestId("cell-M-07").click();
         assertThat(page.getByTestId("selection")).containsText("Reserved");
         assertThat(page.getByTestId("continue")).hasCount(0);
@@ -60,7 +60,7 @@ class RegisterAndTrackWebIT extends AbstractWebIT {
 
     @Test
     void invalidEmailIsReportedNextToTheField() {
-        open("/register/ORB-WAW-014/M-03?size=M");
+        open("/register/ORB-AVR-001/M-03?size=M");
         page.getByTestId("sender-email").fill("not-an-email");
         page.getByTestId("sender-name").focus();
         assertThat(page.locator("#s-email-err")).hasText("Please enter a valid email address.");
@@ -77,7 +77,7 @@ class RegisterAndTrackWebIT extends AbstractWebIT {
 
     @Test
     void recipientCanCancelBeforeCollection() {
-        String tc = register(CENTRUM, "S", null, 24).get("trackingCode").asString();
+        String tc = register(FORUM, "S", null, 24).get("trackingCode").asString();
         open("/tracking");
         page.getByTestId("tracking-input").fill(tc);
         page.getByTestId("track-button").click();

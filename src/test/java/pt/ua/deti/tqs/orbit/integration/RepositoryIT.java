@@ -52,7 +52,7 @@ class RepositoryIT {
     @BeforeEach
     void setUp() {
         AbstractIntegrationTest.resetDatabase(jdbc);
-        centrum = stations.findByCode("ORB-WAW-014").orElseThrow();
+        centrum = stations.findByCode("ORB-AVR-001").orElseThrow();
     }
 
     private Parcel newParcel(String code, Compartment c) {
@@ -61,8 +61,12 @@ class RepositoryIT {
     }
 
     @Test
-    void seedDataHasFiveWarsawStationsWithMixedSizes() {
-        assertThat(stations.findAll()).hasSize(5).allSatisfy(s -> assertThat(s.getCity()).isEqualTo("Warsaw"));
+    void seedDataHasFiveAveiroZoneStationsWithMixedSizes() {
+        assertThat(stations.findAll()).hasSize(5).allSatisfy(s -> {
+            assertThat(s.getCity()).isIn("Aveiro", "Ílhavo");
+            assertThat(s.getLatitude()).isBetween(40.55, 40.70);
+            assertThat(s.getLongitude()).isBetween(-8.75, -8.60);
+        });
         List<Compartment> bank = compartments.findByStationOrderByPositionAsc(centrum);
         assertThat(bank).hasSize(16);
         assertThat(bank).filteredOn(c -> c.getSize() == CompartmentSize.M).extracting(Compartment::getCode)

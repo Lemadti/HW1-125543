@@ -43,9 +43,18 @@ public class Compartment {
     @Column(name = "status_reason")
     private String statusReason;
 
+    /** Constructor for JPA. */
     protected Compartment() {
     }
 
+    /**
+     * Creates an in-service compartment.
+     *
+     * @param station  the station it belongs to
+     * @param code     display code, e.g. "M-07"
+     * @param position 1-based position in the bank
+     * @param size     compartment size
+     */
     public Compartment(Station station, String code, int position, CompartmentSize size) {
         this.station = station;
         this.code = code;
@@ -53,43 +62,89 @@ public class Compartment {
         this.size = size;
     }
 
+    /**
+     * Returns the ID.
+     *
+     * @return the ID
+     */
     public Long getId() {
         return id;
     }
 
+    /**
+     * Returns the station.
+     *
+     * @return the station
+     */
     public Station getStation() {
         return station;
     }
 
+    /**
+     * Returns the code.
+     *
+     * @return the code
+     */
     public String getCode() {
         return code;
     }
 
+    /**
+     * Returns the position.
+     *
+     * @return the position
+     */
     public int getPosition() {
         return position;
     }
 
+    /**
+     * Returns the size.
+     *
+     * @return the size
+     */
     public CompartmentSize getSize() {
         return size;
     }
 
+    /**
+     * Returns the status.
+     *
+     * @return the status
+     */
     public CompartmentStatus getStatus() {
         return status;
     }
 
+    /**
+     * Returns the status reason.
+     *
+     * @return the status reason
+     */
     public String getStatusReason() {
         return statusReason;
     }
 
+    /**
+     * Whether this is in service.
+     *
+     * @return true if in service
+     */
     public boolean isInService() {
         return status == CompartmentStatus.IN_SERVICE;
     }
 
+    /**
+     * Marks the compartment as faulty: no new parcel will be allocated to it.
+     *
+     * @param reason why it was put out of service
+     */
     public void putOutOfService(String reason) {
         this.status = CompartmentStatus.OUT_OF_SERVICE;
         this.statusReason = reason;
     }
 
+    /** Puts the compartment back in service and clears the reason. */
     public void putInService() {
         this.status = CompartmentStatus.IN_SERVICE;
         this.statusReason = null;

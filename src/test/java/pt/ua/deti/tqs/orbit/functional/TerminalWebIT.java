@@ -18,10 +18,10 @@ class TerminalWebIT extends AbstractWebIT {
 
     @Test
     void courierDropsOffAndRecipientPicksUp() {
-        JsonNode reg = register(CENTRUM, "M", "M-07", 24);
+        JsonNode reg = register(FORUM, "M", "M-07", 24);
         collect(reg);
 
-        open("/terminal/ORB-WAW-014");
+        open("/terminal/ORB-AVR-001");
         page.getByTestId("start-dropoff").click();
         enterPin(reg.get("dropOffCode").asString());
         assertThat(page.getByTestId("screen-title")).hasText("Compartment M-07 is open");
@@ -40,7 +40,7 @@ class TerminalWebIT extends AbstractWebIT {
 
     @Test
     void wrongCodesAreReportedAndTheThirdBlocksTheTerminal() {
-        open("/terminal/ORB-WAW-014");
+        open("/terminal/ORB-AVR-001");
         page.getByTestId("start-pickup").click();
         enterPin("000000");
         assertThat(page.getByTestId("pin-error")).containsText("2 attempt(s) left");
@@ -52,11 +52,11 @@ class TerminalWebIT extends AbstractWebIT {
 
     @Test
     void doorFailureOffersAnotherCompartment() {
-        JsonNode reg = register(CENTRUM, "M", "M-07", 24);
+        JsonNode reg = register(FORUM, "M", "M-07", 24);
         collect(reg);
-        hardware.inject(new CompartmentRef(CENTRUM, "M-07"), Fault.DOOR_WONT_OPEN);
+        hardware.inject(new CompartmentRef(FORUM, "M-07"), Fault.DOOR_WONT_OPEN);
 
-        open("/terminal/ORB-WAW-014");
+        open("/terminal/ORB-AVR-001");
         page.getByTestId("start-dropoff").click();
         enterPin(reg.get("dropOffCode").asString());
         assertThat(page.getByTestId("screen-title")).hasText("The compartment did not open");

@@ -2,14 +2,22 @@ package pt.ua.deti.tqs.orbit.service;
 
 import pt.ua.deti.tqs.orbit.domain.GeoPoint;
 
-/** Great-circle distance with the haversine formula. */
+/** Great-circle distance with the haversine formula, and a walking-time estimate. */
 public final class DistanceCalculator {
 
+    /** Mean Earth radius (IUGG), in kilometres. */
     static final double EARTH_RADIUS_KM = 6371.0088;
 
     private DistanceCalculator() {
     }
 
+    /**
+     * Haversine distance between two points.
+     *
+     * @param a first point
+     * @param b second point
+     * @return distance in kilometres
+     */
     public static double distanceKm(GeoPoint a, GeoPoint b) {
         double lat1 = Math.toRadians(a.latitude());
         double lat2 = Math.toRadians(b.latitude());
@@ -20,7 +28,12 @@ public final class DistanceCalculator {
         return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1.0, Math.sqrt(h)));
     }
 
-    /** Walking time estimate at 5 km/h, rounded up to whole minutes (at least 1). */
+    /**
+     * Walking time at 5 km/h, rounded up (at least one minute).
+     *
+     * @param km distance in kilometres
+     * @return minutes
+     */
     public static int walkingMinutes(double km) {
         return Math.max(1, (int) Math.ceil(km / 5.0 * 60));
     }

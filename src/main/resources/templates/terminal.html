@@ -7,21 +7,21 @@
   <main id="main" class="kiosk" th:attr="data-station=${station.code},data-phone=${assistancePhone}" aria-labelledby="k-title">
     <div class="kiosk-header">
       <div class="row"><span class="brand-mark"><svg width="22" height="22" aria-hidden="true"><use href="/img/icons.svg#logo"/></svg></span>
-        <div><div class="strong">orbit lockers</div><div class="muted tiny" th:text="${station.name} + ' · ' + ${station.code}">Centrum</div></div></div>
+        <div><div class="strong">orbit lockers</div><div class="muted tiny" th:text="${station.name} + ' · ' + ${station.code}">Fórum Aveiro</div></div></div>
       <span class="muted small" id="clock" aria-hidden="true"></span>
     </div>
     <div id="screen" aria-live="polite" data-testid="screen"></div>
   </main>
   <aside class="kiosk-side stack" aria-label="Station information">
     <div class="card">
-      <div class="strong" th:text="${station.name}">Centrum</div>
+      <div class="strong" th:text="${station.name}">Fórum Aveiro</div>
       <div class="muted small" th:text="${station.address} + ', ' + ${station.postalCode} + ' ' + ${station.city}">addr</div>
       <p class="muted small" th:text="${station.accessNotes}"></p>
     </div>
     <div class="card">
       <div class="strong row"><svg width="16" height="16" aria-hidden="true"><use href="/img/icons.svg#help"/></svg>Need help?</div>
       <p class="muted small">If the screen does not respond, call assistance:</p>
-      <div class="strong" style="font-size:18px" th:text="${assistancePhone}">+48</div>
+      <div class="strong" style="font-size:18px" th:text="${assistancePhone}">+351</div>
     </div>
     <div class="card small muted">
       This page simulates the station touchscreen. The backend controls the compartments through the hardware port

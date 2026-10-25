@@ -30,6 +30,12 @@ public class DeadlineService {
 
     private static final Logger log = LoggerFactory.getLogger(DeadlineService.class);
 
+    /**
+     * Result of one deadline check.
+     *
+     * @param cancelled parcels cancelled because the lease ended
+     * @param expired   parcels expired because the pickup window ended
+     */
     public record Report(int cancelled, int expired) {
     }
 
@@ -39,6 +45,15 @@ public class DeadlineService {
     private final Clock clock;
     private final TransactionTemplate tx;
 
+    /**
+     * Creates the service.
+     *
+     * @param parcels            parcel repository
+     * @param transitions        records the system transitions
+     * @param notifier           informs sender/recipient
+     * @param clock              time source
+     * @param transactionManager used to process each parcel in its own transaction
+     */
     public DeadlineService(ParcelRepository parcels, TransitionRecorder transitions, NotifierPort notifier,
                            Clock clock, PlatformTransactionManager transactionManager) {
         this.parcels = parcels;
@@ -48,6 +63,7 @@ public class DeadlineService {
         this.tx = new TransactionTemplate(transactionManager);
     }
 
+    /** Runs {@link #processDeadlines()} periodically ({@code orbit.rules.deadline-check-interval}). */
     @Scheduled(fixedDelayString = "${orbit.rules.deadline-check-interval:60s}",
             initialDelayString = "${orbit.rules.deadline-check-initial-delay:10s}")
     public void scheduledRun() {
@@ -57,6 +73,11 @@ public class DeadlineService {
         }
     }
 
+    /**
+     * Cancels CREATED parcels whose lease ended and expires READY_FOR_PICKUP parcels whose pickup window ended.
+     *
+     * @return how many parcels were cancelled and expired
+     */
     public Report processDeadlines() {
         Instant now = clock.instant();
         List<Long> toCancel = ids(tx.execute(s ->

@@ -3,7 +3,7 @@ Feature: Drop off at the locker terminal (UC3)
   so that I can store the parcel safely.
 
   Background:
-    Given a "M" parcel registered at station "ORB-WAW-014"
+    Given a "M" parcel registered at station "ORB-AVR-001"
 
   Scenario: Successful drop-off notifies the recipient
     Given the courier collected the parcel

@@ -42,9 +42,9 @@ import pt.ua.deti.tqs.orbit.web.api.TerminalApiController;
 class ApiContractWebMvcTest {
 
     private static final String VALID_BODY = """
-            {"stationCode":"ORB-WAW-014","size":"M","leaseHours":48,
-             "sender":{"name":"Anna Kowalska","email":"anna@example.com","phone":"+48 501 234 567"},
-             "recipient":{"name":"Piotr Nowak","email":"piotr@example.com","phone":"+48 602 789 123"}}""";
+            {"stationCode":"ORB-AVR-001","size":"M","leaseHours":48,
+             "sender":{"name":"Ana Silva","email":"ana@example.com","phone":"+351 912 345 678"},
+             "recipient":{"name":"João Santos","email":"joao@example.com","phone":"+351 934 567 890"}}""";
 
     @Autowired
     MockMvcTester mvc;
@@ -59,7 +59,7 @@ class ApiContractWebMvcTest {
     @Test
     void registerReturns201WithLocation() {
         when(parcels.register(any())).thenReturn(new RegistrationResult("ORB-261024-0714", ParcelState.CREATED,
-                "ORB-WAW-014", "Centrum", "M-07", CompartmentSize.M, null, 48, null, new BigDecimal("24.00"), "PLN",
+                "ORB-AVR-001", "Fórum Aveiro", "M-07", CompartmentSize.M, null, 48, null, new BigDecimal("24.00"), "EUR",
                 "DLV-AAAA", "123456"));
 
         assertThat(mvc.post().uri("/api/v1/parcels").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
@@ -70,7 +70,7 @@ class ApiContractWebMvcTest {
 
     @Test
     void invalidBodyIs400WithFieldErrors() {
-        String body = VALID_BODY.replace("anna@example.com", "not-an-email").replace("\"size\":\"M\",", "");
+        String body = VALID_BODY.replace("ana@example.com", "not-an-email").replace("\"size\":\"M\",", "");
         assertThat(mvc.post().uri("/api/v1/parcels").contentType(MediaType.APPLICATION_JSON).content(body))
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)

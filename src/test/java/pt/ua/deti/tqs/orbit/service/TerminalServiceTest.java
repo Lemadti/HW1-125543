@@ -55,7 +55,7 @@ import pt.ua.deti.tqs.orbit.support.TestProperties;
  */
 class TerminalServiceTest {
 
-    private static final String STATION = "ORB-WAW-014";
+    private static final String STATION = "ORB-AVR-001";
     private static final String DROP_PIN = "123456";
 
     private final MutableClock clock = MutableClock.fixedAt(TestData.T0);
@@ -134,7 +134,7 @@ class TerminalServiceTest {
             String pickup = notifier.lastCode(Notification.Type.PICKUP_CODE).orElseThrow();
             assertThat(pickup).matches("\\d{6}").isNotEqualTo(DROP_PIN);
             assertThat(parcel.getPickupCodeHash()).isEqualTo(codes.hash(pickup));
-            assertThat(notifier.ofType(Notification.Type.PICKUP_CODE).get(0).toEmail()).isEqualTo("piotr@example.com");
+            assertThat(notifier.ofType(Notification.Type.PICKUP_CODE).get(0).toEmail()).isEqualTo("joao@example.com");
         }
 
         @Test
@@ -175,7 +175,7 @@ class TerminalServiceTest {
             String newPin = notifier.lastCode(Notification.Type.REPLACEMENT_DROP_OFF_CODE).orElseThrow();
             assertThat(parcel.getDropOffCodeHash()).isEqualTo(codes.hash(newPin)).isNotEqualTo(codes.hash(DROP_PIN));
             assertThat(notifier.ofType(Notification.Type.REPLACEMENT_DROP_OFF_CODE).get(0).toEmail())
-                    .isEqualTo("anna@example.com");
+                    .isEqualTo("ana@example.com");
 
             when(parcels.findByStationAndDropOffCodeHashAndStateIn(eq(station), eq(codes.hash(newPin)), any()))
                     .thenReturn(Optional.of(parcel));
@@ -328,7 +328,7 @@ class TerminalServiceTest {
             TerminalResult r = terminal.startPickup(STATION, pin);
 
             assertThat(r.outcome()).isEqualTo(TerminalService.DOOR_DID_NOT_OPEN);
-            assertThat(r.message()).contains("+48 22 100 20 30");
+            assertThat(r.message()).contains("+351 234 100 200");
             assertThat(parcel.getState()).isEqualTo(ParcelState.READY_FOR_PICKUP);
             assertThat(parcel.getPickupCodeHash()).isEqualTo(codes.hash(pin));
             assertThat(m07.isInService()).isFalse();

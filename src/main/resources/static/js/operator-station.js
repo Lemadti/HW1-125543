@@ -10,7 +10,7 @@
   let selected = null;
   let compartments = [];
 
-  $('now').textContent = O.fmtDateTime(new Date().toISOString()) + ' CET';
+  $('now').textContent = O.fmtDateTime(new Date().toISOString()) + ' (Lisbon time)';
 
   function opAlert(kind, msg) {
     const a = $('op-alert');

@@ -48,11 +48,23 @@ public class ParcelTransition {
 
     private String note;
 
+    /** Constructor for JPA. */
     protected ParcelTransition() {
     }
 
+    /**
+     * Creates a transition record (see {@link Parcel#apply}).
+     *
+     * @param parcel     the parcel
+     * @param fromState  previous state, or null for the registration
+     * @param toState    new state
+     * @param event      the event, or null for the registration
+     * @param actor      who triggered it
+     * @param occurredAt when it happened
+     * @param note       optional note
+     */
     ParcelTransition(Parcel parcel, ParcelState fromState, ParcelState toState, ParcelEvent event, Actor actor,
-                     Instant occurredAt, String note) {
+                        Instant occurredAt, String note) {
         this.parcel = parcel;
         this.fromState = fromState;
         this.toState = toState;
@@ -62,30 +74,65 @@ public class ParcelTransition {
         this.note = note;
     }
 
+    /**
+     * Returns the ID.
+     *
+     * @return the ID
+     */
     public Long getId() {
         return id;
     }
 
+    /**
+     * Returns the from state.
+     *
+     * @return the from state
+     */
     public ParcelState getFromState() {
         return fromState;
     }
 
+    /**
+     * Returns the to state.
+     *
+     * @return the to state
+     */
     public ParcelState getToState() {
         return toState;
     }
 
+    /**
+     * Returns the event.
+     *
+     * @return the event
+     */
     public ParcelEvent getEvent() {
         return event;
     }
 
+    /**
+     * Returns the actor.
+     *
+     * @return the actor
+     */
     public Actor getActor() {
         return actor;
     }
 
+    /**
+     * Returns the occurred at.
+     *
+     * @return the occurred at
+     */
     public Instant getOccurredAt() {
         return occurredAt;
     }
 
+    /**
+     * Returns the note.
+     *
+     * @return the note
+     */
     public String getNote() {
         return note;
     }

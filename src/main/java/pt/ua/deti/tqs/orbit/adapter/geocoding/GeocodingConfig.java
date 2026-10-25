@@ -14,6 +14,18 @@ public class GeocodingConfig {
 
     private static final Logger log = LoggerFactory.getLogger(GeocodingConfig.class);
 
+    /** Creates the geocoding configuration. */
+    public GeocodingConfig() {
+        // no state
+    }
+
+    /**
+     * Builds the geocoder selected by {@code orbit.geocoding.provider}: the stub, or Nominatim behind a cache.
+     *
+     * @param properties geocoding settings
+     * @param clock      time source for the cache and the rate limit
+     * @return the geocoder port
+     */
     @Bean
     GeocoderPort geocoderPort(OrbitProperties properties, Clock clock) {
         OrbitProperties.Geocoding cfg = properties.geocoding();

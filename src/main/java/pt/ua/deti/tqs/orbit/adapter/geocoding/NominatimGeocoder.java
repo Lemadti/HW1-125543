@@ -32,6 +32,13 @@ public class NominatimGeocoder implements GeocoderPort {
 
     private static final Logger log = LoggerFactory.getLogger("orbit.geocoding");
 
+    /**
+     * One result of the Nominatim search API (only the fields used).
+     *
+     * @param lat          latitude, as text
+     * @param lon          longitude, as text
+     * @param display_name full address returned by Nominatim
+     */
     record Place(String lat, String lon, String display_name) {
     }
 
@@ -41,6 +48,12 @@ public class NominatimGeocoder implements GeocoderPort {
     private final Clock clock;
     private Instant lastCall = Instant.MIN;
 
+    /**
+     * Creates the client.
+     *
+     * @param cfg   provider URL, User-Agent, country filter, timeouts and minimum interval between requests
+     * @param clock time source for the local rate limit
+     */
     public NominatimGeocoder(OrbitProperties.Geocoding cfg, Clock clock) {
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(cfg.connectTimeout())
@@ -58,6 +71,13 @@ public class NominatimGeocoder implements GeocoderPort {
         this.clock = clock;
     }
 
+    /**
+     * Calls {@code GET /search?q=...&format=jsonv2&limit=1&countrycodes=...} and returns the first result.
+     *
+     * @param address free-text address
+     * @return the coordinates of the best match, or empty if Nominatim returns no result
+     * @throws GeocodingUnavailableException with reason TIMEOUT, PROVIDER_ERROR or RATE_LIMITED
+     */
     @Override
     public Optional<GeoPoint> geocode(String address) {
         acquirePermit(address);

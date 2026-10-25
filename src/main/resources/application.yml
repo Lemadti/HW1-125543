@@ -45,12 +45,12 @@ logging:
 # Orbit business rules (all configurable). See README "Business rules".
 # ---------------------------------------------------------------------------------------------
 orbit:
-  assistance-phone: "+48 22 100 20 30"
+  assistance-phone: "+351 234 100 200"
   rules:
     lease-hours-options: [24, 48, 72]   # drop-off window chosen by the partner (lease)
     default-lease-hours: 48
-    price-per-day: 12.00               # per started day of lease, VAT included
-    currency: PLN
+    price-per-day: 3.00                # per started day of lease, VAT included
+    currency: EUR
     pickup-window: 15d                 # pickup allowed for 15 days after drop-off
     max-lease-start-ahead: 7d
     terminal-session-timeout: 5m       # time to close the door after it opened
@@ -61,13 +61,13 @@ orbit:
     lockout: 1h                        # ...block code entry for 1 hour
     hmac-secret: ${ORBIT_CODE_SECRET:dev-only-secret-change-me}
   search:
-    radius-km: 5.0
+    radius-km: 20.0
     max-results: 10
   geocoding:
     provider: ${ORBIT_GEOCODER:nominatim}   # nominatim | stub
     base-url: https://nominatim.openstreetmap.org
     user-agent: "OrbitLockers-TQS-HW1/1.0 (university project)"
-    country-codes: pl
+    country-codes: pt
     connect-timeout: 2s
     read-timeout: 3s
     min-interval: 1s                   # Nominatim usage policy: max 1 request/second

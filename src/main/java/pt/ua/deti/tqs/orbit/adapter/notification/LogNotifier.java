@@ -17,11 +17,22 @@ public class LogNotifier implements NotifierPort {
     private final NotificationOutbox outbox;
     private final Clock clock;
 
+    /**
+     * Creates the notifier.
+     *
+     * @param outbox where notifications are kept for the demo inbox
+     * @param clock  time source for the sent-at timestamp
+     */
     public LogNotifier(NotificationOutbox outbox, Clock clock) {
         this.outbox = outbox;
         this.clock = clock;
     }
 
+    /**
+     * Logs the notification (masked contact, no body) and stores it in the outbox.
+     *
+     * @param n the notification
+     */
     @Override
     public void send(Notification n) {
         log.info("NOTIFY {} parcel={} to={} <{}> / {} subject=\"{}\"", n.type(), n.trackingCode(), n.toName(),
@@ -29,6 +40,12 @@ public class LogNotifier implements NotifierPort {
         outbox.add(clock.instant(), n);
     }
 
+    /**
+     * Masks an e-mail for logs: "ana.silva@example.com" becomes "a***@example.com".
+     *
+     * @param email the address
+     * @return the masked address
+     */
     static String maskEmail(String email) {
         if (email == null || !email.contains("@")) {
             return "***";
@@ -37,6 +54,12 @@ public class LogNotifier implements NotifierPort {
         return email.charAt(0) + "***" + email.substring(at);
     }
 
+    /**
+     * Masks a phone number for logs, keeping the last three digits.
+     *
+     * @param phone the number
+     * @return the masked number
+     */
     static String maskPhone(String phone) {
         if (phone == null || phone.length() < 4) {
             return "***";

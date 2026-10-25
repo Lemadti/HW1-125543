@@ -46,6 +46,20 @@ public class ParcelService {
     private final Clock clock;
     private final OrbitProperties.Rules rules;
 
+    /**
+     * Creates the service.
+     *
+     * @param stations    station repository (with the allocation lock)
+     * @param parcels     parcel repository
+     * @param allocator   compartment allocation rules
+     * @param codes       tracking and delivery codes
+     * @param pins        drop-off PINs
+     * @param pricing     lease options and price
+     * @param transitions records transitions
+     * @param notifier    informs the sender
+     * @param clock       time source
+     * @param properties  business rules
+     */
     public ParcelService(StationRepository stations, ParcelRepository parcels, CompartmentAllocator allocator,
                          CodeService codes, PinIssuer pins, PricingPolicy pricing, TransitionRecorder transitions,
                          NotifierPort notifier, Clock clock, OrbitProperties properties) {
@@ -62,9 +76,14 @@ public class ParcelService {
     }
 
     /**
-     * Registers a parcel and reserves a compartment. The station row is locked for the duration of the transaction,
-     * so concurrent registrations for the same station are serialised (and the partial unique index on
-     * parcel.compartment_id is a second line of defence).
+     * Registers a parcel and reserves a compartment (UC2). The station row is locked for the duration of the
+     * transaction, so concurrent registrations for the same station are serialised (and the partial unique index on
+     * {@code parcel.compartment_id} is a second line of defence).
+     *
+     * @param cmd station, size, optional compartment, lease and contacts
+     * @return tracking code, delivery code, drop-off PIN and reservation details
+     * @throws OrbitException STATION_NOT_FOUND, STATION_FULL, COMPARTMENT_NOT_AVAILABLE, INVALID_LEASE_DURATION or
+     *         INVALID_LEASE_START
      */
     @Transactional
     public RegistrationResult register(RegisterParcelCommand cmd) {
@@ -104,22 +123,49 @@ public class ParcelService {
                 parcel.getDeliveryCode(), dropOff.pin());
     }
 
+    /**
+     * Public tracking information (UC5).
+     *
+     * @param trackingCode tracking code (case-insensitive)
+     * @return state, history and locations, with the recipient name masked
+     * @throws OrbitException PARCEL_NOT_FOUND
+     */
     @Transactional(readOnly = true)
     public TrackingView track(String trackingCode) {
         return Views.tracking(find(trackingCode));
     }
 
+    /**
+     * Full parcel information for the operator.
+     *
+     * @param trackingCode tracking code
+     * @return the parcel detail
+     * @throws OrbitException PARCEL_NOT_FOUND
+     */
     @Transactional(readOnly = true)
     public ParcelDetail detail(String trackingCode) {
         return Views.detail(find(trackingCode));
     }
 
+    /**
+     * The 20 most recently registered parcels.
+     *
+     * @return the parcels, newest first
+     */
     @Transactional(readOnly = true)
     public List<ParcelSummary> recent() {
         return parcels.findTop20ByOrderByCreatedAtDesc().stream().map(Views::summary).toList();
     }
 
-    /** Partner or recipient cancels a parcel not yet collected: the compartment is freed. */
+    /**
+     * Cancels a parcel not yet collected (CREATED to CANCELLED); the compartment is freed.
+     *
+     * @param trackingCode tracking code
+     * @param actor        PARTNER or RECIPIENT
+     * @param reason       optional reason
+     * @return the updated tracking view
+     * @throws pt.ua.deti.tqs.orbit.domain.InvalidTransitionException if the parcel is not CREATED
+     */
     @Transactional
     public TrackingView cancel(String trackingCode, Actor actor, String reason) {
         Parcel parcel = find(trackingCode);
@@ -131,7 +177,14 @@ public class ParcelService {
         return Views.tracking(parcel);
     }
 
-    /** Courier scans the QR (delivery code) when collecting the parcel at the partner. */
+    /**
+     * The courier scans the delivery code at the partner (CREATED to ON_ITS_WAY).
+     *
+     * @param deliveryCode  QR content from the label
+     * @param locationLabel optional location of the collection
+     * @return the updated tracking view
+     * @throws OrbitException DELIVERY_CODE_NOT_FOUND or DROP_OFF_DEADLINE_PASSED
+     */
     @Transactional
     public TrackingView collect(String deliveryCode, String locationLabel) {
         Parcel parcel = parcels.findByDeliveryCode(deliveryCode == null ? "" : deliveryCode.trim())
@@ -146,7 +199,16 @@ public class ParcelService {
         return Views.tracking(parcel);
     }
 
-    /** Courier reports where an in-transit parcel is. Only allowed while ON_ITS_WAY. */
+    /**
+     * Records where an in-transit parcel is.
+     *
+     * @param trackingCode tracking code
+     * @param label        location description
+     * @param latitude     optional latitude
+     * @param longitude    optional longitude
+     * @return the updated tracking view
+     * @throws OrbitException INVALID_STATE if the parcel is not ON_ITS_WAY
+     */
     @Transactional
     public TrackingView addLocation(String trackingCode, String label, Double latitude, Double longitude) {
         Parcel parcel = find(trackingCode);
@@ -159,6 +221,13 @@ public class ParcelService {
         return Views.tracking(parcel);
     }
 
+    /**
+     * Loads a parcel by tracking code (trimmed, upper case).
+     *
+     * @param trackingCode tracking code
+     * @return the parcel
+     * @throws OrbitException PARCEL_NOT_FOUND
+     */
     Parcel find(String trackingCode) {
         String code = trackingCode == null ? "" : trackingCode.trim().toUpperCase();
         return parcels.findByTrackingCode(code)

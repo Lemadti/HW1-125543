@@ -3,7 +3,7 @@ Feature: Pick up at the locker terminal (UC4)
   so that I can collect my parcel without the risk of it being stolen.
 
   Background:
-    Given a "S" parcel waiting for pickup at station "ORB-WAW-014"
+    Given a "S" parcel waiting for pickup at station "ORB-AVR-001"
 
   Scenario: Valid pickup code
     When the recipient enters the pickup code at the terminal

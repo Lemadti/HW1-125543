@@ -18,7 +18,7 @@ class DeadlineAndReturnIT extends AbstractIntegrationTest {
 
     @Test
     void leaseEndCancelsAnUncollectedParcelAndFreesTheCompartment() {
-        JsonNode reg = register(CENTRUM, "M", "M-07", 24);
+        JsonNode reg = register(FORUM, "M", "M-07", 24);
         String tc = reg.get("trackingCode").asString();
 
         clock.advance(Duration.ofHours(23).plusMinutes(59));
@@ -32,7 +32,7 @@ class DeadlineAndReturnIT extends AbstractIntegrationTest {
         assertThat(last.get("actor").asString()).isEqualTo("SYSTEM");
         assertThat(last.get("event").asString()).isEqualTo("DROP_OFF_DEADLINE_PASSED");
 
-        assertThat(register(CENTRUM, "M", "M-07", 24).get("compartmentCode").asString()).isEqualTo("M-07");
+        assertThat(register(FORUM, "M", "M-07", 24).get("compartmentCode").asString()).isEqualTo("M-07");
         // the courier can no longer collect the cancelled parcel
         assertThat(post("/api/v1/courier/collections", "{\"deliveryCode\":\"" + reg.get("deliveryCode").asString() + "\"}"))
                 .hasStatus(HttpStatus.CONFLICT);
@@ -40,31 +40,31 @@ class DeadlineAndReturnIT extends AbstractIntegrationTest {
 
     @Test
     void pickupWindowEndExpiresTheParcelButTheCodeStillWorks() {
-        JsonNode reg = register(CENTRUM, "S", "S-01", 24);
-        String pin = deliverToLocker(CENTRUM, reg);
+        JsonNode reg = register(FORUM, "S", "S-01", 24);
+        String pin = deliverToLocker(FORUM, reg);
         String tc = reg.get("trackingCode").asString();
 
         clock.advance(Duration.ofDays(15));
         assertThat(deadlines.processDeadlines().expired()).isEqualTo(1);
         assertThat(state(tc)).isEqualTo("EXPIRED");
 
-        assertThat(post("/api/v1/terminals/" + CENTRUM + "/pickups", "{\"code\":\"" + pin + "\"}"))
+        assertThat(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"" + pin + "\"}"))
                 .hasStatus(HttpStatus.OK).bodyJson().extractingPath("$.state").isEqualTo("PICKED_UP");
     }
 
     @Test
     void expiredCompartmentIsReallocatedAndTheOldParcelIsReturnedOnTheNextDropOff() {
-        JsonNode old = register(CENTRUM, "L", "L-04", 24);
-        deliverToLocker(CENTRUM, old);
+        JsonNode old = register(FORUM, "L", "L-04", 24);
+        deliverToLocker(FORUM, old);
         clock.advance(Duration.ofDays(15));
         deadlines.processDeadlines();
         String oldTc = old.get("trackingCode").asString();
 
         // the expired compartment is allocatable again; allocation flags the old parcel TO_RETURN (system)
-        JsonNode next = register(CENTRUM, "L", "L-04", 24);
+        JsonNode next = register(FORUM, "L", "L-04", 24);
         assertThat(state(oldTc)).isEqualTo("TO_RETURN");
 
-        deliverToLocker(CENTRUM, next);
+        deliverToLocker(FORUM, next);
         assertThat(state(oldTc)).isEqualTo("RETURNED");
         JsonNode history = json(get("/api/v1/parcels/" + oldTc)).get("history");
         assertThat(history).extracting(h -> h.get("to").asString() + "/" + h.get("actor").asString())
@@ -74,30 +74,30 @@ class DeadlineAndReturnIT extends AbstractIntegrationTest {
 
     @Test
     void operatorRegistersRemovalOfAnExpiredParcel() {
-        JsonNode reg = register(CENTRUM, "M", "M-03", 24);
-        String pin = deliverToLocker(CENTRUM, reg);
+        JsonNode reg = register(FORUM, "M", "M-03", 24);
+        String pin = deliverToLocker(FORUM, reg);
         clock.advance(Duration.ofDays(16));
         deadlines.processDeadlines();
         String tc = reg.get("trackingCode").asString();
 
-        assertThat(get("/api/v1/operator/stations/" + CENTRUM + "/parcels?state=EXPIRED"))
+        assertThat(get("/api/v1/operator/stations/" + FORUM + "/parcels?state=EXPIRED"))
                 .bodyJson().extractingPath("$[0].trackingCode").isEqualTo(tc);
         assertThat(post("/api/v1/operator/parcels/" + tc + "/removal", null)).hasStatus(HttpStatus.OK)
                 .bodyJson().extractingPath("$.state").isEqualTo("RETURNED");
         // after removal the recipient can no longer collect it
-        assertThat(post("/api/v1/terminals/" + CENTRUM + "/pickups", "{\"code\":\"" + pin + "\"}"))
+        assertThat(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"" + pin + "\"}"))
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 
     @Test
     void lockoutEndsAfterOneHourOfClockTime() {
         for (int i = 0; i < 3; i++) {
-            post("/api/v1/terminals/" + CENTRUM + "/pickups", "{\"code\":\"00000" + i + "\"}");
+            post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"00000" + i + "\"}");
         }
-        assertThat(post("/api/v1/terminals/" + CENTRUM + "/pickups", "{\"code\":\"999999\"}"))
+        assertThat(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"999999\"}"))
                 .hasStatus(HttpStatus.TOO_MANY_REQUESTS);
         clock.advance(Duration.ofHours(1));
-        assertThat(post("/api/v1/terminals/" + CENTRUM + "/pickups", "{\"code\":\"999999\"}"))
+        assertThat(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"999999\"}"))
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 }

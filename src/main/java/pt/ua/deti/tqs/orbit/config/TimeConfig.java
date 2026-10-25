@@ -10,6 +10,16 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class TimeConfig {
 
+    /** Creates the time configuration. */
+    public TimeConfig() {
+        // no state
+    }
+
+    /**
+     * The application clock: system time, movable only by tests and the demo endpoints.
+     *
+     * @return the clock
+     */
     @Bean
     MutableClock clock() {
         return MutableClock.system();

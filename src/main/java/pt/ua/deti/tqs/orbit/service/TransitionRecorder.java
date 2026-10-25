@@ -17,10 +17,25 @@ public class TransitionRecorder {
 
     private final Clock clock;
 
+    /**
+     * Creates the recorder.
+     *
+     * @param clock time source for transition timestamps
+     */
     public TransitionRecorder(Clock clock) {
         this.clock = clock;
     }
 
+    /**
+     * Applies the event at the current time and logs the transition.
+     *
+     * @param parcel the parcel
+     * @param event  the event
+     * @param actor  who triggers it
+     * @param note   optional note
+     * @return the recorded transition
+     * @throws pt.ua.deti.tqs.orbit.domain.InvalidTransitionException if the event is not allowed
+     */
     public ParcelTransition apply(Parcel parcel, ParcelEvent event, Actor actor, String note) {
         ParcelTransition t = parcel.apply(event, actor, clock.instant(), note);
         log.info("TRANSITION parcel={} {} -> {} event={} actor={}{}", parcel.getTrackingCode(), t.getFromState(),

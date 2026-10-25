@@ -34,6 +34,17 @@ public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
+    /** Creates the handler. */
+    public ApiExceptionHandler() {
+        // no state
+    }
+
+    /**
+     * Business rule violations: status from {@link OrbitException.Kind}, plus {@code Retry-After} for lockouts.
+     *
+     * @param e the exception
+     * @return the problem detail
+     */
     @ExceptionHandler(OrbitException.class)
     ResponseEntity<ProblemDetail> orbit(OrbitException e) {
         HttpStatus status = switch (e.getKind()) {
@@ -53,6 +64,12 @@ public class ApiExceptionHandler {
         return builder.body(pd);
     }
 
+    /**
+     * Invalid lifecycle event: 409 with the current state and the allowed events.
+     *
+     * @param e the exception
+     * @return the problem detail
+     */
     @ExceptionHandler(InvalidTransitionException.class)
     ResponseEntity<ProblemDetail> invalidTransition(InvalidTransitionException e) {
         ProblemDetail pd = problem(HttpStatus.CONFLICT, "INVALID_TRANSITION", e.getMessage());
@@ -63,6 +80,12 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(pd);
     }
 
+    /**
+     * Geocoding provider unavailable: 503 with the reason and the fallback endpoint.
+     *
+     * @param e the exception
+     * @return the problem detail
+     */
     @ExceptionHandler(GeocodingUnavailableException.class)
     ResponseEntity<ProblemDetail> geocoding(GeocodingUnavailableException e) {
         ProblemDetail pd = problem(HttpStatus.SERVICE_UNAVAILABLE, "GEOCODER_UNAVAILABLE",
@@ -74,6 +97,12 @@ public class ApiExceptionHandler {
                 .body(pd);
     }
 
+    /**
+     * Bean validation errors: 400 with a message per field.
+     *
+     * @param e the exception
+     * @return the problem detail
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ProblemDetail> validation(MethodArgumentNotValidException e) {
         Map<String, String> errors = new LinkedHashMap<>();
@@ -83,15 +112,39 @@ public class ApiExceptionHandler {
         return ResponseEntity.badRequest().body(pd);
     }
 
+    /**
+     * Unreadable body, wrong parameter type or missing parameter: 400.
+     *
+     * @param e the exception
+     * @return the problem detail
+     */
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
             MissingServletRequestParameterException.class})
+    /**
+     * Unreadable body, wrong parameter type or missing parameter: 400.
+     *
+     * @param e the exception
+     * @return the problem detail
+     */
     ResponseEntity<ProblemDetail> malformed(Exception e) {
         return ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST",
                 "The request could not be read: " + firstLine(e.getMessage())));
     }
 
+    /**
+     * Concurrent modification (unique index, optimistic or pessimistic lock): 409.
+     *
+     * @param e the exception
+     * @return the problem detail
+     */
     @ExceptionHandler({DataIntegrityViolationException.class, ObjectOptimisticLockingFailureException.class,
             PessimisticLockingFailureException.class})
+    /**
+     * Concurrent modification (unique index, optimistic or pessimistic lock): 409.
+     *
+     * @param e the exception
+     * @return the problem detail
+     */
     ResponseEntity<ProblemDetail> concurrent(Exception e) {
         log.warn("Concurrent modification rejected: {}", firstLine(e.getMessage()));
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem(HttpStatus.CONFLICT, "CONCURRENT_UPDATE",

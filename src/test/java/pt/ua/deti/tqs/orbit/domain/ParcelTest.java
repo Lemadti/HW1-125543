@@ -10,7 +10,7 @@ import pt.ua.deti.tqs.orbit.support.TestData;
 
 class ParcelTest {
 
-    private final Station station = TestData.station(1, "ORB-WAW-014", 52.23, 21.01);
+    private final Station station = TestData.station(1, "ORB-AVR-001", 52.23, 21.01);
     private final Compartment m07 = TestData.compartment(7, station, "M-07", CompartmentSize.M);
 
     @Test
@@ -88,7 +88,7 @@ class ParcelTest {
 
     @Test
     void contactNameIsMaskedForPublicPages() {
-        assertThat(new Contact("Piotr Nowak", "e", "p").maskedName()).isEqualTo("Piotr N.");
+        assertThat(new Contact("João Santos", "e", "p").maskedName()).isEqualTo("João S.");
         assertThat(new Contact("Madonna", "e", "p").maskedName()).isEqualTo("Madonna");
     }
 }

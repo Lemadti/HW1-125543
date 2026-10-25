@@ -38,8 +38,17 @@ public class StationService {
     private final GeocoderPort geocoder;
     private final OrbitProperties.Search search;
 
+    /**
+     * Creates the service.
+     *
+     * @param stations     station repository
+     * @param compartments compartment repository
+     * @param parcels      parcel repository
+     * @param geocoder     geocoding port
+     * @param properties   search radius and result limit
+     */
     public StationService(StationRepository stations, CompartmentRepository compartments, ParcelRepository parcels,
-                          GeocoderPort geocoder, OrbitProperties properties) {
+                            GeocoderPort geocoder, OrbitProperties properties) {
         this.stations = stations;
         this.compartments = compartments;
         this.parcels = parcels;
@@ -47,7 +56,12 @@ public class StationService {
         this.search = properties.search();
     }
 
-    /** All stations, alphabetically, with free compartments (fallback when geocoding is unavailable). */
+    /**
+     * All stations alphabetically, with free compartments; the fallback when geocoding is unavailable.
+     *
+     * @param size if not null, only stations with a free compartment of this size
+     * @return the stations (without distance)
+     */
     public List<StationSummary> listAll(CompartmentSize size) {
         Map<Long, SizeCounts> free = freeCounts();
         return stations.findAllByOrderByNameAsc().stream()
@@ -59,7 +73,10 @@ public class StationService {
     /**
      * Geocodes the address and returns the stations within the search radius, nearest first.
      *
-     * @throws OrbitException (NOT_FOUND / ADDRESS_NOT_FOUND) if the provider does not know the address
+     * @param address free-text address
+     * @param size    optional size filter
+     * @return the ranked stations
+     * @throws OrbitException ADDRESS_REQUIRED or ADDRESS_NOT_FOUND
      * @throws pt.ua.deti.tqs.orbit.port.GeocodingUnavailableException if the provider cannot answer
      */
     public NearbySearchResult nearbyAddress(String address, CompartmentSize size) {
@@ -72,10 +89,25 @@ public class StationService {
         return nearby(address.trim(), origin, size);
     }
 
+    /**
+     * Stations within the search radius of a point, nearest first.
+     *
+     * @param origin the point
+     * @param size   optional size filter
+     * @return the ranked stations
+     */
     public NearbySearchResult nearbyPoint(GeoPoint origin, CompartmentSize size) {
         return nearby(null, origin, size);
     }
 
+    /**
+     * Ranks the stations around an origin.
+     *
+     * @param query  the address searched, or null
+     * @param origin the origin point
+     * @param size   optional size filter
+     * @return the result
+     */
     NearbySearchResult nearby(String query, GeoPoint origin, CompartmentSize size) {
         Map<Long, SizeCounts> free = freeCounts();
         List<StationSummary> ranked = rank(origin, stations.findAll(), free, size, search.radiusKm(),
@@ -83,7 +115,18 @@ public class StationService {
         return new NearbySearchResult(query, origin.latitude(), origin.longitude(), search.radiusKm(), ranked);
     }
 
-    /** Ranking rule: within radius, (optionally) with a free compartment of the size, nearest first, ties by name. */
+    /**
+     * Ranking rule: within the radius, optionally with a free compartment of the size, nearest first, ties
+     * broken by name.
+     *
+     * @param origin     origin point
+     * @param all        candidate stations
+     * @param free       free compartments per station id
+     * @param size       optional size filter
+     * @param radiusKm   maximum distance
+     * @param maxResults maximum number of stations
+     * @return the ranked summaries
+     */
     List<StationSummary> rank(GeoPoint origin, List<Station> all, Map<Long, SizeCounts> free, CompartmentSize size,
                               double radiusKm, int maxResults) {
         return all.stream()
@@ -95,6 +138,13 @@ public class StationService {
                 .toList();
     }
 
+    /**
+     * A station with every compartment and its availability (front view).
+     *
+     * @param code station code
+     * @return the station detail
+     * @throws OrbitException STATION_NOT_FOUND
+     */
     public StationDetail detail(String code) {
         Station station = stations.findByCode(code)
                 .orElseThrow(() -> OrbitException.notFound("STATION_NOT_FOUND", "Station " + code + " not found"));

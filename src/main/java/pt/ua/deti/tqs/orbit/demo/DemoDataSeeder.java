@@ -17,47 +17,62 @@ import pt.ua.deti.tqs.orbit.service.view.TerminalResult;
 
 /**
  * Seeds a few parcels through the real services (so every transition is recorded) when the database has none:
- * one CREATED, one ON_ITS_WAY with location scans, one READY_FOR_PICKUP (its pickup code is in the demo inbox).
+ * one CREATED, one ON_ITS_WAY with location scans, and one READY_FOR_PICKUP (its pickup code is in the demo inbox).
+ *
+ * <p>Active only with {@code orbit.demo.seed-parcels=true}.</p>
  */
 @Component
 @ConditionalOnProperty(prefix = "orbit.demo", name = "seed-parcels", havingValue = "true")
 public class DemoDataSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeeder.class);
-    private static final String CENTRUM = "ORB-WAW-014";
+    private static final String FORUM = "ORB-AVR-001";
+    private static final String STATION = "ORB-AVR-002";
 
     private final ParcelRepository parcels;
     private final ParcelService parcelService;
     private final TerminalService terminal;
 
+    /**
+     * Creates the seeder.
+     *
+     * @param parcels       used to check whether the database already has parcels
+     * @param parcelService registers, collects and locates the demo parcels
+     * @param terminal      drops off the parcel that ends up ready for pickup
+     */
     public DemoDataSeeder(ParcelRepository parcels, ParcelService parcelService, TerminalService terminal) {
         this.parcels = parcels;
         this.parcelService = parcelService;
         this.terminal = terminal;
     }
 
+    /**
+     * Creates the demo parcels if the parcel table is empty; otherwise does nothing.
+     *
+     * @param args application arguments (unused)
+     */
     @Override
     public void run(ApplicationArguments args) {
         if (parcels.count() > 0) {
             return;
         }
-        Contact anna = new Contact("Anna Kowalska", "anna.kowalska@example.com", "+48 501 234 567");
-        Contact piotr = new Contact("Piotr Nowak", "piotr.nowak@example.com", "+48 602 789 123");
-        Contact ewa = new Contact("Ewa Zielińska", "ewa.zielinska@example.com", "+48 503 111 222");
+        Contact ana = new Contact("Ana Silva", "ana.silva@example.com", "+351 912 345 678");
+        Contact joao = new Contact("João Santos", "joao.santos@example.com", "+351 934 567 890");
+        Contact maria = new Contact("Maria Costa", "maria.costa@example.com", "+351 961 111 222");
 
         RegistrationResult onItsWay = parcelService.register(
-                new RegisterParcelCommand(CENTRUM, CompartmentSize.M, "M-07", null, 48, anna, piotr));
-        parcelService.collect(onItsWay.deliveryCode(), "Pruszków sorting hub");
-        parcelService.addLocation(onItsWay.trackingCode(), "Warsaw Wola depot · Towarowa 22", 52.2300, 20.9850);
+                new RegisterParcelCommand(FORUM, CompartmentSize.M, "M-07", null, 48, ana, joao));
+        parcelService.collect(onItsWay.deliveryCode(), "Aveiro sorting hub · Taboeira");
+        parcelService.addLocation(onItsWay.trackingCode(), "Aveiro depot · Esgueira", 40.6530, -8.6310);
 
         RegistrationResult ready = parcelService.register(
-                new RegisterParcelCommand(CENTRUM, CompartmentSize.S, null, null, 24, anna, ewa));
-        parcelService.collect(ready.deliveryCode(), "Pruszków sorting hub");
-        TerminalResult opened = terminal.startDropOff(CENTRUM, ready.dropOffCode());
-        terminal.confirmDropOff(CENTRUM, opened.sessionToken());
+                new RegisterParcelCommand(FORUM, CompartmentSize.S, null, null, 24, ana, maria));
+        parcelService.collect(ready.deliveryCode(), "Aveiro sorting hub · Taboeira");
+        TerminalResult opened = terminal.startDropOff(FORUM, ready.dropOffCode());
+        terminal.confirmDropOff(FORUM, opened.sessionToken());
 
         RegistrationResult created = parcelService.register(
-                new RegisterParcelCommand("ORB-WAW-021", CompartmentSize.L, null, null, 72, ewa, piotr));
+                new RegisterParcelCommand(STATION, CompartmentSize.L, null, null, 72, maria, joao));
 
         log.info("Demo parcels: ON_ITS_WAY {} | READY_FOR_PICKUP {} (pickup code in demo inbox) | CREATED {} "
                         + "(delivery code {}, drop-off PIN {})", onItsWay.trackingCode(), ready.trackingCode(),

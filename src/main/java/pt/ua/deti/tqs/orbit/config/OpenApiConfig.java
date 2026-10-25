@@ -5,9 +5,20 @@ import io.swagger.v3.oas.models.info.Info;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/** OpenAPI (springdoc) metadata for the REST API documentation. */
 @Configuration
 public class OpenApiConfig {
 
+    /** Creates the OpenAPI configuration. */
+    public OpenApiConfig() {
+        // no state
+    }
+
+    /**
+     * Title and description of the OpenAPI document (Swagger UI at {@code /swagger-ui.html}).
+     *
+     * @return the OpenAPI metadata
+     */
     @Bean
     OpenAPI orbitOpenApi() {
         return new OpenAPI().info(new Info()

@@ -40,6 +40,19 @@ public class OperatorService {
     private final IncidentReporter incidents;
     private final NotifierPort notifier;
 
+    /**
+     * Creates the service.
+     *
+     * @param stations           station repository
+     * @param compartments       compartment repository
+     * @param parcels            parcel repository
+     * @param incidentRepository incident repository
+     * @param allocator          finds replacement compartments
+     * @param pins               issues new drop-off PINs
+     * @param transitions        records operator transitions
+     * @param incidents          records manual out-of-service incidents
+     * @param notifier           informs senders
+     */
     public OperatorService(StationRepository stations, CompartmentRepository compartments, ParcelRepository parcels,
                            IncidentRepository incidentRepository, CompartmentAllocator allocator, PinIssuer pins,
                            TransitionRecorder transitions, IncidentReporter incidents, NotifierPort notifier) {
@@ -54,7 +67,14 @@ public class OperatorService {
         this.notifier = notifier;
     }
 
-    /** Parcels of a station, optionally filtered by state, newest first. */
+    /**
+     * Parcels of a station, optionally filtered by state, newest first.
+     *
+     * @param stationCode station code
+     * @param states      states to include, or null/empty for all
+     * @return the parcels
+     * @throws OrbitException STATION_NOT_FOUND
+     */
     @Transactional(readOnly = true)
     public List<ParcelSummary> stationParcels(String stationCode, Collection<ParcelState> states) {
         Station station = station(stationCode);
@@ -64,6 +84,13 @@ public class OperatorService {
         return list.stream().map(Views::summary).toList();
     }
 
+    /**
+     * The last 50 malfunction reports of a station, newest first.
+     *
+     * @param stationCode station code
+     * @return the incidents
+     * @throws OrbitException STATION_NOT_FOUND
+     */
     @Transactional(readOnly = true)
     public List<IncidentView> incidents(String stationCode) {
         return incidentRepository.findTop50ByCompartmentStationOrderByReportedAtDesc(station(stationCode)).stream()
@@ -71,8 +98,12 @@ public class OperatorService {
     }
 
     /**
-     * Registers that an expired parcel was physically removed from its compartment by an operator:
-     * EXPIRED -> TO_RETURN -> RETURNED (both transitions recorded), or TO_RETURN -> RETURNED.
+     * Registers that an expired parcel was removed by an operator: EXPIRED to TO_RETURN to RETURNED,
+     * or TO_RETURN to RETURNED. The pickup code stops working.
+     *
+     * @param trackingCode tracking code
+     * @return the updated parcel
+     * @throws pt.ua.deti.tqs.orbit.domain.InvalidTransitionException if the parcel is not EXPIRED or TO_RETURN
      */
     @Transactional
     public ParcelDetail registerRemoval(String trackingCode) {
@@ -88,7 +119,13 @@ public class OperatorService {
         return Views.detail(parcel);
     }
 
-    /** Flags an expired parcel to be returned (EXPIRED -> TO_RETURN) without removing it yet. */
+    /**
+     * Flags an expired parcel to be returned (EXPIRED to TO_RETURN).
+     *
+     * @param trackingCode tracking code
+     * @return the updated parcel
+     * @throws pt.ua.deti.tqs.orbit.domain.InvalidTransitionException if the parcel is not EXPIRED
+     */
     @Transactional
     public ParcelDetail markToReturn(String trackingCode) {
         Parcel parcel = parcel(trackingCode);
@@ -97,9 +134,15 @@ public class OperatorService {
     }
 
     /**
-     * Puts a compartment out of service (or back in service). A reservation not yet deposited (CREATED / ON_ITS_WAY)
-     * is moved to another free compartment of the same size and a new drop-off PIN is sent to the sender; if none is
-     * free the request is rejected. A deposited parcel stays where it is and can still be collected.
+     * Puts a compartment out of service or back in service. A reservation not yet deposited (CREATED or
+     * ON_ITS_WAY) moves to another free compartment of the same size and a new drop-off PIN is sent to the sender;
+     * if none is free the request is rejected. A deposited parcel stays where it is and can still be collected.
+     *
+     * @param stationCode     station code
+     * @param compartmentCode compartment code
+     * @param status          new status
+     * @param reason          why (for out of service; optional)
+     * @throws OrbitException STATION_NOT_FOUND, COMPARTMENT_NOT_FOUND or NO_REPLACEMENT_AVAILABLE
      */
     @Transactional
     public void setCompartmentStatus(String stationCode, String compartmentCode, CompartmentStatus status,

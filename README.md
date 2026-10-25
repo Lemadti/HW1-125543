@@ -1,6 +1,7 @@
 # Orbit Lockers
 
-**Orbit** is a smart parcel locker network for Warsaw, built for the TQS HW1 midterm assignment.
+**Orbit** is a smart parcel locker network for the **Aveiro zone (Portugal)**, built for the TQS HW1 midterm
+assignment.
 Partners (online shops) register parcels for a locker station through a REST API or the web. A courier collects the
 parcel, then drops it off at the station terminal. The recipient picks it up with a one-time code. An operator
 supervises stations, expired parcels and faulty compartments.
@@ -55,8 +56,9 @@ docker compose up -d db          # PostgreSQL 17 on localhost:5432 (db/user/pass
 ./mvnw spring-boot:run           # http://localhost:8080
 ```
 
-Flyway creates the schema and seeds **5 stations in Warsaw (Śródmieście)** with real coordinates. Each station has
-16 compartments in mixed sizes (Nowy Świat has 12). With demo mode on (the default), three demo parcels are also
+Flyway creates the schema and seeds **5 stations in the Aveiro zone** with real coordinates: Fórum Aveiro,
+Estação de Aveiro, Universidade de Aveiro, Glicínias Plaza and Ílhavo Centro. Each station has 16 compartments in
+mixed sizes (Glicínias Plaza has 12). With demo mode on (the default), three demo parcels are also
 created at startup.
 
 ### Useful URLs
@@ -79,7 +81,7 @@ created at startup.
 | Variable | Default | Meaning |
 |---|---|---|
 | `ORBIT_DB_URL` / `ORBIT_DB_USER` / `ORBIT_DB_PASSWORD` | `jdbc:postgresql://localhost:5432/orbit` / `orbit` / `orbit` | Database |
-| `ORBIT_GEOCODER` | `nominatim` | `nominatim` (real OpenStreetMap API) or `stub` (offline, fixed Warsaw addresses) |
+| `ORBIT_GEOCODER` | `nominatim` | `nominatim` (real OpenStreetMap API) or `stub` (offline, fixed Aveiro addresses) |
 | `ORBIT_DEMO` | `true` | Enables `/demo` and `/api/v1/demo/**` (inbox, fault injection, clock). **Set to `false` in production.** |
 | `ORBIT_DEMO_SEED` | `true` | Seeds three demo parcels when the database has none |
 | `ORBIT_CODE_SECRET` | dev value | HMAC secret used to store PINs (change it in production) |
@@ -95,7 +97,7 @@ Real SMS/e-mail are out of scope. Every notification goes through the **notifier
 code) and stored in an in-memory outbox that the **Demo tools** page shows as an inbox. Use that inbox to read the
 pickup code "sent" to the recipient.
 
-1. **Find a locker (UC1):** on `/`, search `Chmielna 30, Warsaw`. Stations are ranked by distance. Click one to see
+1. **Find a locker (UC1):** on `/`, search `Rua de Coimbra 10, Aveiro`. Stations are ranked by distance. Click one to see
    its free compartments.
 2. **Register (UC2):** go to `/register`, choose *Medium* and a station, then pick a green compartment and continue.
    Fill in the lease and the contacts, then submit. The confirmation shows the **tracking code**, the **delivery code
@@ -120,9 +122,9 @@ pickup code "sent" to the recipient.
 
 ## 3. Pages (web UI)
 
-The pages follow the mockups in `../Mockup` (Find stations, Register 1/2/3, Tracking, Tracking detail, Operator,
-Operator parcel detail). The terminal, courier, station supervision and demo pages had no mockup, so they reuse the
-same design system.
+The pages follow the layout of the mockups in `../Mockup` (Find stations, Register 1/2/3, Tracking, Tracking detail,
+Operator, Operator parcel detail). The mockups show Warsaw; the application is set in Aveiro instead.
+The terminal, courier, station supervision and demo pages had no mockup, so they reuse the same design system.
 
 | Page | Route | Actor | Mockup |
 |---|---|---|---|
@@ -175,7 +177,7 @@ Maps use Leaflet with OpenStreetMap tiles. They are optional: the pages still wo
 ```
 
 Tech stack: Spring Boot 4.1 (Web MVC, Data JPA, Validation, Actuator, Flyway), Java 21, Maven, PostgreSQL 17,
-Thymeleaf, springdoc-openapi 3, Leaflet. Tests use JUnit 6, AssertJ, Mockito, Spring Boot test slices,
+Thymeleaf, springdoc-openapi 3, Leaflet. All public classes and members carry Javadoc (see §10.8). Tests use JUnit 6, AssertJ, Mockito, Spring Boot test slices,
 Testcontainers 2, WireMock 3, Playwright for Java, axe-core, Cucumber 8 and k6. Coverage is measured with JaCoCo
 and static analysis with SonarQube.
 
@@ -245,10 +247,10 @@ All values live under `orbit.*` in `src/main/resources/application.yml` and are 
 | **Station full** | No free compatible compartment: **409 `STATION_FULL`**. A chosen compartment that is already taken: **409 `COMPARTMENT_NOT_AVAILABLE`**. | | `ParcelLifecycleApiIT`, BDD |
 | **Two partners, last compartment** | Allocation locks the station row (`SELECT … FOR UPDATE`), and the partial unique index is a second line of defence. | `StationRepository.findByCodeForUpdate` | `ConcurrentAllocationIT` (24 concurrent HTTP requests) |
 | **Drop-off deadline (lease)** | The partner reserves the compartment for a **lease of 24, 48 or 72 h** (as in the mockups), starting now or up to 7 days ahead. The lease end is the drop-off deadline: a parcel still CREATED then is **CANCELLED by the system** and the compartment is released. | `orbit.rules.lease-hours-options`, `default-lease-hours`, `max-lease-start-ahead` | `DeadlineServiceTest`, `DeadlineAndReturnIT`, `06_deadlines.feature` |
-| **Price** | **12.00 PLN per started day** of lease, VAT included: 24 h = 12, 48 h = 24, 72 h = 36 PLN. | `orbit.rules.price-per-day`, `currency` | `PricingPolicyTest` |
+| **Price** | **3.00 EUR per started day** of lease, VAT included: 24 h = 3, 48 h = 6, 72 h = 9 EUR. | `orbit.rules.price-per-day`, `currency` | `PricingPolicyTest` |
 | **Pickup deadline** | Pickup is allowed for **15 days after drop-off**. After that the parcel is **EXPIRED**, but the recipient can still collect it with the same code until it is removed (TO_RETURN → RETURNED). | `orbit.rules.pickup-window` | `DeadlineServiceTest`, `DeadlineAndReturnIT`, BDD |
 | **Delivery code** | `DLV-` + 12 random characters, shown as a **QR code** on the label. The courier scans it when collecting at the partner (CREATED → ON_ITS_WAY). | `CodeService` | `CodeServiceTest` |
-| **Tracking code** | `ORB-yyMMdd-NNNN` (Warsaw date + 4 digits), unique and public. | `CodeService` | `CodeServiceTest` |
+| **Tracking code** | `ORB-yyMMdd-NNNN` (Lisbon date + 4 digits), unique and public. | `CodeService` | `CodeServiceTest` |
 | **Drop-off code** | **6-digit PIN** (`SecureRandom`) printed on the label, unique among the station's pending drop-offs. It becomes invalid after the deposit. | `orbit.codes.pin-length` | `CodeServiceTest`, `TerminalServiceTest` |
 | **Pickup code** | **6-digit PIN** (`SecureRandom`) sent to the recipient by the notifier when the parcel is deposited. It is always different from the drop-off code and unique among collectable parcels at the station. It is **single use** (consumed when the door opens) and valid while READY_FOR_PICKUP, EXPIRED or TO_RETURN. | | `TerminalServiceTest`, `ParcelLifecycleApiIT`, `04_pickup.feature` |
 | **Protection against guessing** | After **3 consecutive wrong codes** at a station terminal (drop-off and pickup counted separately), code entry is **blocked for 1 hour** (429 + `Retry-After`). A correct code resets the counter. PINs are stored only as **HMAC-SHA256**. | `orbit.codes.max-failed-attempts`, `lockout`, `hmac-secret` | `AttemptGuardTest`, `TerminalServiceTest`, `DeadlineAndReturnIT`, BDD, `TerminalWebIT` |
@@ -298,12 +300,12 @@ Every error is `application/problem+json` with a stable machine-readable `code`:
 | Method | Path | Description | Responses |
 |---|---|---|---|
 | GET | `/stations?size=S\|M\|L` | All stations with free compartments per size; with `size`, only those with one free of that size | 200 |
-| GET | `/stations/nearby?address=…[&size=]` | Geocodes the address and returns stations within 5 km, nearest first | 200, 404 `ADDRESS_NOT_FOUND`, 422, 503 `GEOCODER_UNAVAILABLE` |
+| GET | `/stations/nearby?address=…[&size=]` | Geocodes the address (Nominatim, results limited to Portugal) and returns stations within 5 km, nearest first | 200, 404 `ADDRESS_NOT_FOUND`, 422, 503 `GEOCODER_UNAVAILABLE` |
 | GET | `/stations/nearby?lat=…&lon=…[&size=]` | Same, from coordinates ("use my location") | 200, 422 |
 | GET | `/stations/{code}` | Station detail and the front view of every compartment (`AVAILABLE`/`RESERVED`/`OUT_OF_SERVICE`, `reservedUntil`) | 200, 404 |
 
 ```bash
-curl "http://localhost:8080/api/v1/stations/nearby?address=Chmielna%2030,%20Warsaw&size=M"
+curl "http://localhost:8080/api/v1/stations/nearby?address=Rua%20de%20Coimbra%2010,%20Aveiro&size=M"
 ```
 
 ### Parcels: partner and recipient (UC2, UC5)
@@ -317,18 +319,18 @@ curl "http://localhost:8080/api/v1/stations/nearby?address=Chmielna%2030,%20Wars
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/parcels -H 'Content-Type: application/json' -d '{
-  "stationCode": "ORB-WAW-014", "size": "M", "compartmentCode": "M-07",
+  "stationCode": "ORB-AVR-001", "size": "M", "compartmentCode": "M-07",
   "leaseStart": "2026-10-25T10:00:00Z", "leaseHours": 48,
-  "sender":    {"name": "Anna Kowalska", "email": "anna.kowalska@example.com", "phone": "+48 501 234 567"},
-  "recipient": {"name": "Piotr Nowak",   "email": "piotr.nowak@example.com",   "phone": "+48 602 789 123"}}'
+  "sender":    {"name": "Ana Silva", "email": "ana.silva@example.com", "phone": "+351 912 345 678"},
+  "recipient": {"name": "João Santos",   "email": "joao.santos@example.com",   "phone": "+351 934 567 890"}}'
 ```
 
 `compartmentCode` and `leaseStart` are optional (defaults: first free compartment, now). `leaseHours` defaults to 48.
 
 ```json
-{ "trackingCode": "ORB-261025-7552", "state": "CREATED", "stationCode": "ORB-WAW-014", "stationName": "Centrum",
+{ "trackingCode": "ORB-261025-7552", "state": "CREATED", "stationCode": "ORB-AVR-001", "stationName": "Fórum Aveiro",
   "compartmentCode": "M-07", "size": "M", "leaseStart": "…", "leaseHours": 48, "dropOffDeadline": "…",
-  "price": 24.00, "currency": "PLN", "deliveryCode": "DLV-UMS2AMJBRPED", "dropOffCode": "991106" }
+  "price": 6.00, "currency": "EUR", "deliveryCode": "DLV-UMS2AMJBRPED", "dropOffCode": "991106" }
 ```
 
 The drop-off PIN is returned only once, in this response. The database stores just its HMAC.
@@ -357,7 +359,7 @@ must handle, not client errors.
 ```json
 { "outcome": "DOOR_OPENED", "message": "Compartment M-03 is open. Place the parcel inside and close the door.",
   "trackingCode": "ORB-261025-7552", "state": "ON_ITS_WAY", "compartmentCode": "M-03",
-  "sessionToken": "724a7a0c-…", "replacementAvailable": null, "assistancePhone": "+48 22 100 20 30" }
+  "sessionToken": "724a7a0c-…", "replacementAvailable": null, "assistancePhone": "+351 234 100 200" }
 ```
 
 ### Operator (UC6)
@@ -387,11 +389,11 @@ must handle, not client errors.
 
 | ID | Requirement (measurable) | Verification |
 |---|---|---|
-| NFR1 | p95 response time **< 500 ms with 50 concurrent users** | k6 `load-tests/orbit-load.js` (threshold `http_req_duration p(95)<500`). Measured locally: **p95 = 23 ms**, 0% errors, 8,132 requests in 70 s |
+| NFR1 | p95 response time **< 500 ms with 50 concurrent users** | k6 `load-tests/orbit-load.js` (threshold `http_req_duration p(95)<500`). Measured locally: **p95 = 15 ms**, 0% errors, 8,218 requests in 70 s |
 | NFR2 | **WCAG 2.2 AA** on all pages (REST API excluded) | `AccessibilityWebIT`: axe-core on 13 pages, tags wcag2a/aa, 21a/aa, 22aa, no violations allowed. Plus a manual keyboard walkthrough (see §10.6) |
 | NFR3 | 6-digit codes generated with **SecureRandom**, stored only as HMAC | `CodeServiceTest` (format, distribution, keyed hash) and code review |
 | NFR4 | **Nominatim usage policy**: at most 1 req/s, identifying User-Agent, cached results, and no calls from tests | `NominatimGeocoderIT` (User-Agent, 1 req/s enforced), `CachingGeocoderTest`. Every test and the load test use the stub or WireMock |
-| NFR5 | p95 **< 300 ms** for read endpoints with 50 concurrent users | k6 threshold `http_req_duration{type:read} p(95)<300`. Measured **p95 = 18.7 ms** |
+| NFR5 | p95 **< 300 ms** for read endpoints with 50 concurrent users | k6 threshold `http_req_duration{type:read} p(95)<300`. Measured **p95 = 11.5 ms** |
 | NFR6 | Pickup codes are **single use** | `TerminalServiceTest`, `ParcelLifecycleApiIT.pickupCodeIsSingleUse`, `04_pickup.feature` |
 | NFR7 | Client state refreshes **at least every 2 minutes** | Pages poll every 60 s (`setInterval(…, 60000)` in the page scripts) |
 | NFR8 | Code entry **blocks after 3 consecutive wrong attempts** at a terminal | `AttemptGuardTest`, `TerminalServiceTest`, `TerminalWebIT`, BDD |
@@ -465,7 +467,7 @@ context cache). Each test resets the database and the fakes.
 | Integration | 37 | ✅ |
 | Functional + accessibility | 26 | ✅ |
 | BDD (Cucumber) | 20 scenarios | ✅ |
-| Load (k6, 50 VUs, 70 s) | p95 23.45 ms (all), 18.65 ms (reads), 0 failed of 8,132 | ✅ thresholds met |
+| Load (k6, 50 VUs, 70 s) | p95 15.43 ms (all), 11.46 ms (reads), 0 failed of 8,218 | ✅ thresholds met |
 | Coverage (JaCoCo, unit + IT merged) | lines 92.8%, instructions 91.8%, branches 79.5% | |
 
 ### 10.5 Problems the tests found (and fixes)
@@ -500,6 +502,16 @@ JaCoCo produces the unit, integration and merged reports. The merged XML is conf
 `./mvnw verify` and, when `SONAR_TOKEN` is set, runs the analysis with `sonar.qualitygate.wait=true`, so the build
 fails when the gate fails.
 
+### 10.8 Javadoc
+
+Every public and package-visible class, constructor, method, record component, enum constant and package in
+`src/main/java` has Javadoc. Business rules, the error codes thrown and the REST endpoint of each controller method
+are documented in place. The build checks it strictly (`doclint=all`, warnings fail the goal):
+
+```bash
+./mvnw javadoc:javadoc        # -> target/reports/apidocs/index.html
+```
+
 ---
 
 ## 11. Configuration reference
@@ -508,12 +520,12 @@ The full file is `src/main/resources/application.yml`. The main keys:
 
 ```yaml
 orbit:
-  assistance-phone: "+48 22 100 20 30"
-  rules:   { lease-hours-options: [24,48,72], default-lease-hours: 48, price-per-day: 12.00, currency: PLN,
+  assistance-phone: "+351 234 100 200"
+  rules:   { lease-hours-options: [24,48,72], default-lease-hours: 48, price-per-day: 3.00, currency: EUR,
              pickup-window: 15d, max-lease-start-ahead: 7d, terminal-session-timeout: 5m, deadline-check-interval: 60s }
   codes:   { pin-length: 6, max-failed-attempts: 3, lockout: 1h, hmac-secret: ${ORBIT_CODE_SECRET} }
   search:  { radius-km: 5.0, max-results: 10 }
-  geocoding: { provider: nominatim|stub, base-url: https://nominatim.openstreetmap.org, country-codes: pl,
+  geocoding: { provider: nominatim|stub, base-url: https://nominatim.openstreetmap.org, country-codes: pt,
                connect-timeout: 2s, read-timeout: 3s, min-interval: 1s, cache-ttl: 24h, negative-cache-ttl: 1h }
   hardware: { auto-close: true }      # fake behaves as a working locker
   demo:     { enabled: true, seed-parcels: true }
@@ -559,12 +571,14 @@ orbit/
 
 ## 13. Assumptions, interpretations and limitations
 
-* **City and data:** following the mockups, the network is in **Warsaw** (stations in Śródmieście, prices in PLN,
-  times shown in Europe/Warsaw).
-* **Lease vs. drop-off deadline:** the mockups sell a **24/48/72 h lease** at 12 PLN/day, while the report template
-  says "drop-off allowed up to 5 working days after the predicted delivery date". These are reconciled by using the
-  **lease end as the drop-off deadline**, which is configurable. The pickup window (15 days after drop-off) follows
-  the report.
+* **City and data:** the network is in the **Aveiro zone, Portugal**: five stations in Aveiro and Ílhavo with real
+  coordinates, prices in EUR, Portuguese postal codes and phone numbers, and times shown in Europe/Lisbon. Nominatim
+  results are restricted to Portugal (`countrycodes=pt`). The mockups were drawn for Warsaw; only their layout and
+  behaviour were kept.
+* **Lease vs. drop-off deadline:** the mockups sell a **24/48/72 h lease** (priced per day; 3.00 EUR/day here), while
+  the report template says "drop-off allowed up to 5 working days after the predicted delivery date". These are
+  reconciled by using the **lease end as the drop-off deadline**, which is configurable. The pickup window (15 days
+  after drop-off) follows the report.
 * **Drop-off deadline while ON_ITS_WAY:** the state diagram has no ON_ITS_WAY → CANCELLED transition, so the
   automatic cancellation only applies to parcels still CREATED. A late courier can still drop off a parcel that is on
   its way.

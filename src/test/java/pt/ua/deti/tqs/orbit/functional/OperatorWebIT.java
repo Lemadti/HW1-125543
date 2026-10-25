@@ -16,13 +16,13 @@ class OperatorWebIT extends AbstractWebIT {
 
     @Test
     void operatorSeesExpiredParcelsAndRegistersTheirRemoval() {
-        JsonNode reg = register(CENTRUM, "S", "S-05", 24);
-        deliverToLocker(CENTRUM, reg);
+        JsonNode reg = register(FORUM, "S", "S-05", 24);
+        deliverToLocker(FORUM, reg);
         clock.advance(Duration.ofDays(15));
         deadlines.processDeadlines();
         String tc = reg.get("trackingCode").asString();
 
-        open("/operator/stations/ORB-WAW-014");
+        open("/operator/stations/ORB-AVR-001");
         page.getByTestId("filter-EXPIRED").click();
         assertThat(page.getByTestId("parcel-row")).hasCount(1);
         page.getByTestId("remove-" + tc).click();
@@ -36,7 +36,7 @@ class OperatorWebIT extends AbstractWebIT {
 
     @Test
     void operatorPutsAFaultyCompartmentOutOfService() {
-        open("/operator/stations/ORB-WAW-014");
+        open("/operator/stations/ORB-AVR-001");
         assertThat(page.getByTestId("count-oos")).hasText("2");
         page.getByTestId("cell-M-15").click();
         page.getByTestId("oos-reason").fill("Door sensor faulty");

@@ -16,8 +16,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 class AccessibilityWebIT extends AbstractWebIT {
 
     @ParameterizedTest
-    @ValueSource(strings = {"/", "/register", "/register/ORB-WAW-014?size=M", "/register/ORB-WAW-014/M-03?size=M",
-            "/tracking", "/operator", "/operator/stations/ORB-WAW-014", "/terminal", "/terminal/ORB-WAW-014",
+    @ValueSource(strings = {"/", "/register", "/register/ORB-AVR-001?size=M", "/register/ORB-AVR-001/M-03?size=M",
+            "/tracking", "/operator", "/operator/stations/ORB-AVR-001", "/terminal", "/terminal/ORB-AVR-001",
             "/courier", "/demo"})
     void pageHasNoWcagAaViolations(String path) {
         open(path);
@@ -43,7 +43,7 @@ class AccessibilityWebIT extends AbstractWebIT {
     @ParameterizedTest
     @ValueSource(strings = {"tracking", "operator-parcel"})
     void detailPagesHaveNoWcagAaViolations(String kind) {
-        String tc = register(CENTRUM, "M", null, 24).get("trackingCode").asString();
+        String tc = register(FORUM, "M", null, 24).get("trackingCode").asString();
         open(kind.equals("tracking") ? "/tracking/" + tc : "/operator/parcels/" + tc);
         page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE, new Page.WaitForLoadStateOptions().setTimeout(20000));
         assertNoViolations();

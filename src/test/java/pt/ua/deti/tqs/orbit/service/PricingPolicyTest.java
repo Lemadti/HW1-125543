@@ -15,7 +15,7 @@ class PricingPolicyTest {
     private final PricingPolicy pricing = new PricingPolicy(TestProperties.defaults());
 
     @ParameterizedTest
-    @CsvSource({"24, 12.00", "48, 24.00", "72, 36.00"})
+    @CsvSource({"24, 3.00", "48, 6.00", "72, 9.00"})
     void pricePerStartedDay(int hours, String price) {
         assertThat(pricing.price(hours)).isEqualByComparingTo(new BigDecimal(price));
     }

@@ -37,12 +37,23 @@ public final class ParcelStateMachine {
         TABLE.get(from).put(event, to);
     }
 
-    /** Target state for the event, if the event is valid in that state. */
+    /**
+     * Target state for the event, if the event is valid in that state (actors are not checked).
+     *
+     * @param from  current state
+     * @param event the event
+     * @return the new state, or empty if the event is not valid in {@code from}
+     */
     public static Optional<ParcelState> target(ParcelState from, ParcelEvent event) {
         return Optional.ofNullable(TABLE.get(from).get(event));
     }
 
-    /** Events accepted in the given state. */
+    /**
+     * Events accepted in the given state.
+     *
+     * @param from the state
+     * @return the accepted events (empty for terminal states)
+     */
     public static Set<ParcelEvent> allowedEvents(ParcelState from) {
         return Collections.unmodifiableSet(TABLE.get(from).keySet());
     }
@@ -50,6 +61,10 @@ public final class ParcelStateMachine {
     /**
      * Validates the event and the actor, returning the new state.
      *
+     * @param from  current state
+     * @param event the event
+     * @param actor who triggers it
+     * @return the new state
      * @throws InvalidTransitionException if the event is not valid in the current state, or the actor may not trigger it
      */
     public static ParcelState next(ParcelState from, ParcelEvent event, Actor actor) {

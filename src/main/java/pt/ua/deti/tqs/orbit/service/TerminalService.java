@@ -39,12 +39,19 @@ import pt.ua.deti.tqs.orbit.service.view.TerminalResult;
 @Service
 public class TerminalService {
 
+    /** Outcome: the door opened; the user must close it and confirm. */
     static final String DOOR_OPENED = "DOOR_OPENED";
+    /** Outcome: the parcel was deposited and the pickup code sent. */
     static final String DEPOSITED = "DEPOSITED";
+    /** Outcome: the pickup finished and the door is closed. */
     static final String COMPLETED = "COMPLETED";
+    /** Outcome: the lock did not release; the compartment was put out of service. */
     static final String DOOR_DID_NOT_OPEN = "DOOR_DID_NOT_OPEN";
+    /** Outcome: the door stayed open; the compartment was put out of service. */
     static final String DOOR_DID_NOT_CLOSE = "DOOR_DID_NOT_CLOSE";
+    /** Outcome: the reservation moved to another compartment and a new code was sent. */
     static final String REPLACEMENT_ISSUED = "REPLACEMENT_ISSUED";
+    /** Outcome: no other compartment of the same size is free. */
     static final String NO_REPLACEMENT_AVAILABLE = "NO_REPLACEMENT_AVAILABLE";
 
     private static final List<ParcelState> DROP_OFF_STATES = List.of(ParcelState.CREATED, ParcelState.ON_ITS_WAY);
@@ -62,6 +69,22 @@ public class TerminalService {
     private final Clock clock;
     private final OrbitProperties properties;
 
+    /**
+     * Creates the service.
+     *
+     * @param stations    station repository
+     * @param parcels     parcel repository
+     * @param hardware    locker hardware port
+     * @param notifier    sends pickup and replacement codes
+     * @param codes       PIN hashing
+     * @param pins        issues PINs
+     * @param guard       protection against guessing
+     * @param allocator   finds replacement compartments
+     * @param transitions records transitions
+     * @param incidents   records malfunctions
+     * @param clock       time source
+     * @param properties  business rules
+     */
     public TerminalService(StationRepository stations, ParcelRepository parcels, LockerHardwarePort hardware,
                            NotifierPort notifier, CodeService codes, PinIssuer pins, AttemptGuard guard,
                            CompartmentAllocator allocator, TransitionRecorder transitions,
@@ -82,7 +105,15 @@ public class TerminalService {
 
     // ------------------------------------------------------------------ drop-off (courier)
 
-    /** Step 1 of UC3: the courier enters the drop-off PIN printed on the label. */
+    /**
+     * Step 1 of UC3: the courier enters the drop-off PIN printed on the label and the reserved door opens.
+     *
+     * @param stationCode station of the terminal
+     * @param pin         the PIN typed
+     * @return DOOR_OPENED (with a session token) or DOOR_DID_NOT_OPEN (compartment put out of service)
+     * @throws OrbitException INVALID_CODE, TOO_MANY_ATTEMPTS, STATION_NOT_FOUND or HARDWARE_UNAVAILABLE
+     * @throws InvalidTransitionException if the parcel was not collected yet
+     */
     @Transactional(noRollbackFor = OrbitException.class)
     public TerminalResult startDropOff(String stationCode, String pin) {
         Station station = station(stationCode);
@@ -101,7 +132,15 @@ public class TerminalService {
         return openForDropOff(parcel);
     }
 
-    /** Step 2 of UC3: the courier closed the door. */
+    /**
+     * Step 2 of UC3: the courier closed the door. If the sensor confirms it, the parcel becomes
+     * READY_FOR_PICKUP, expired parcels in the compartment are marked RETURNED and the pickup code is sent.
+     *
+     * @param stationCode station of the terminal
+     * @param token       session token from step 1
+     * @return DEPOSITED or DOOR_DID_NOT_CLOSE
+     * @throws OrbitException SESSION_NOT_FOUND or HARDWARE_UNAVAILABLE
+     */
     @Transactional
     public TerminalResult confirmDropOff(String stationCode, String token) {
         Parcel parcel = session(stationCode, token);
@@ -141,8 +180,13 @@ public class TerminalService {
     }
 
     /**
-     * After a door failure during drop-off, the courier asks for another compartment of the same size. A new drop-off
-     * PIN for the new compartment is sent to the sender's contact (as it would be printed on a new label).
+     * After a door failure during drop-off, the courier asks for another compartment of the same size. A new
+     * drop-off PIN for the new compartment is sent to the sender's contact (as it would be printed on a new label).
+     *
+     * @param stationCode station of the terminal
+     * @param token       session token from the failed step
+     * @return REPLACEMENT_ISSUED or NO_REPLACEMENT_AVAILABLE
+     * @throws OrbitException SESSION_NOT_FOUND or NO_FAILURE_REPORTED
      */
     @Transactional
     public TerminalResult requestReplacement(String stationCode, String token) {
@@ -174,7 +218,15 @@ public class TerminalService {
 
     // ------------------------------------------------------------------ pickup (recipient)
 
-    /** Step 1 of UC4: the recipient enters the pickup PIN. On door opened the parcel is PICKED_UP. */
+    /**
+     * Step 1 of UC4: the recipient enters the pickup PIN. When the door opens the parcel is PICKED_UP and the
+     * code is consumed. If the door does not open, the code stays valid and the compartment goes out of service.
+     *
+     * @param stationCode station of the terminal
+     * @param pin         the PIN typed
+     * @return DOOR_OPENED (with a session token) or DOOR_DID_NOT_OPEN
+     * @throws OrbitException INVALID_CODE, TOO_MANY_ATTEMPTS, STATION_NOT_FOUND or HARDWARE_UNAVAILABLE
+     */
     @Transactional(noRollbackFor = OrbitException.class)
     public TerminalResult startPickup(String stationCode, String pin) {
         Station station = station(stationCode);
@@ -204,7 +256,14 @@ public class TerminalService {
                 + " is open. Take your parcel and close the door.", parcel, token, null);
     }
 
-    /** Step 2 of UC4: the recipient closed the door; the compartment is free again. */
+    /**
+     * Step 2 of UC4: the recipient closed the door; the compartment is free again.
+     *
+     * @param stationCode station of the terminal
+     * @param token       session token from step 1
+     * @return COMPLETED or DOOR_DID_NOT_CLOSE (compartment put out of service)
+     * @throws OrbitException SESSION_NOT_FOUND or HARDWARE_UNAVAILABLE
+     */
     @Transactional
     public TerminalResult confirmPickup(String stationCode, String token) {
         Parcel parcel = session(stationCode, token);

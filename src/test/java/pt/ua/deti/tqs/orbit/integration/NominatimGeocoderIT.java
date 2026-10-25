@@ -39,7 +39,7 @@ class NominatimGeocoderIT {
         server.start();
         clock = MutableClock.fixedAt(TestData.T0);
         OrbitProperties.Geocoding cfg = new OrbitProperties.Geocoding("nominatim", server.baseUrl(), "OrbitTest/1.0",
-                "pl", Duration.ofSeconds(2), Duration.ofSeconds(2), Duration.ofSeconds(1), Duration.ofHours(24),
+                "pt", Duration.ofSeconds(2), Duration.ofSeconds(2), Duration.ofSeconds(1), Duration.ofHours(24),
                 Duration.ofHours(1), 100);
         geocoder = new NominatimGeocoder(cfg, clock);
     }
@@ -52,14 +52,14 @@ class NominatimGeocoderIT {
     @Test
     void parsesFirstResultAndSendsPolicyCompliantRequest() {
         server.stubFor(get(urlPathEqualTo("/search")).willReturn(okJson(
-                "[{\"lat\":\"52.2322861\",\"lon\":\"21.0129197\",\"display_name\":\"Chmielna 30, Warszawa\"}]")));
+                "[{\"lat\":\"40.6403\",\"lon\":\"-8.6537\",\"display_name\":\"Rua de Coimbra, Aveiro\"}]")));
 
-        assertThat(geocoder.geocode("Chmielna 30, Warsaw")).contains(new GeoPoint(52.2322861, 21.0129197));
+        assertThat(geocoder.geocode("Rua de Coimbra 10, Aveiro")).contains(new GeoPoint(40.6403, -8.6537));
         server.verify(getRequestedFor(urlPathEqualTo("/search"))
-                .withQueryParam("q", equalTo("Chmielna 30, Warsaw"))
+                .withQueryParam("q", equalTo("Rua de Coimbra 10, Aveiro"))
                 .withQueryParam("format", equalTo("jsonv2"))
                 .withQueryParam("limit", equalTo("1"))
-                .withQueryParam("countrycodes", equalTo("pl"))
+                .withQueryParam("countrycodes", equalTo("pt"))
                 .withHeader("User-Agent", equalTo("OrbitTest/1.0")));
     }
 

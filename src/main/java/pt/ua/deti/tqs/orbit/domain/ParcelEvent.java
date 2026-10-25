@@ -17,7 +17,7 @@ public enum ParcelEvent {
     PICK_UP(EnumSet.of(Actor.RECIPIENT)),
     /** The pickup window passed. */
     PICKUP_DEADLINE_PASSED(EnumSet.of(Actor.SYSTEM)),
-    /** An expired parcel is flagged to be returned to the partner (automatically when its compartment is re-allocated). */
+    /** An expired parcel is flagged to be returned (automatically when its compartment is re-allocated). */
     MARK_TO_RETURN(EnumSet.of(Actor.SYSTEM, Actor.OPERATOR)),
     /** The parcel was physically removed from the compartment (by the courier on the next drop-off, or by an operator). */
     REMOVE(EnumSet.of(Actor.COURIER, Actor.OPERATOR));
@@ -28,10 +28,21 @@ public enum ParcelEvent {
         this.allowedActors = allowedActors;
     }
 
+    /**
+     * Whether the actor may trigger this event.
+     *
+     * @param actor who is trying to trigger the event
+     * @return true if the actor is allowed
+     */
     public boolean allows(Actor actor) {
         return allowedActors.contains(actor);
     }
 
+    /**
+     * The actors allowed to trigger this event.
+     *
+     * @return a copy of the allowed actors
+     */
     public Set<Actor> allowedActors() {
         return EnumSet.copyOf(allowedActors);
     }

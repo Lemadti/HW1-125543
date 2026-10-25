@@ -39,7 +39,7 @@ class ParcelServiceTest {
     private final ParcelRepository parcels = mock(ParcelRepository.class);
     private final CompartmentRepository compartments = mock(CompartmentRepository.class);
     private final RecordingNotifier notifier = new RecordingNotifier();
-    private final Station station = TestData.station(1, "ORB-WAW-014", 52.23, 21.01);
+    private final Station station = TestData.station(1, "ORB-AVR-001", 40.64, -8.65);
     private final Compartment m07 = TestData.compartment(7, station, "M-07", CompartmentSize.M);
     private ParcelService service;
 
@@ -50,13 +50,13 @@ class ParcelServiceTest {
         service = new ParcelService(stations, parcels, new CompartmentAllocator(compartments, parcels, tr), codes,
                 new PinIssuer(codes, parcels), new PricingPolicy(TestProperties.defaults()), tr, notifier, clock,
                 TestProperties.defaults());
-        when(stations.findByCodeForUpdate("ORB-WAW-014")).thenReturn(Optional.of(station));
+        when(stations.findByCodeForUpdate("ORB-AVR-001")).thenReturn(Optional.of(station));
         when(compartments.findAllocatable(station, CompartmentSize.M)).thenReturn(List.of(m07));
         when(parcels.findByCompartmentAndStateIn(any(), any())).thenReturn(List.of());
     }
 
     private RegisterParcelCommand cmd(java.time.Instant start, int hours) {
-        return new RegisterParcelCommand("ORB-WAW-014", CompartmentSize.M, null, start, hours, TestData.SENDER,
+        return new RegisterParcelCommand("ORB-AVR-001", CompartmentSize.M, null, start, hours, TestData.SENDER,
                 TestData.RECIPIENT);
     }
 
@@ -67,7 +67,7 @@ class ParcelServiceTest {
         assertThat(r.state()).isEqualTo(ParcelState.CREATED);
         assertThat(r.compartmentCode()).isEqualTo("M-07");
         assertThat(r.dropOffDeadline()).isEqualTo(TestData.T0.plus(Duration.ofHours(72)));
-        assertThat(r.price()).isEqualByComparingTo("36.00");
+        assertThat(r.price()).isEqualByComparingTo("9.00");
         assertThat(r.trackingCode()).matches("ORB-\\d{6}-\\d{4}");
         assertThat(r.dropOffCode()).matches("\\d{6}");
         verify(parcels).save(any(Parcel.class));

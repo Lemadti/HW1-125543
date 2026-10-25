@@ -11,7 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/** A location reported by the courier while the parcel is ON_ITS_WAY (e.g. "Warsaw Wola depot"). */
+/** A location reported by the courier while the parcel is ON_ITS_WAY (e.g. "Aveiro depot · Esgueira"). */
 @Entity
 @Table(name = "location_scan")
 public class LocationScan {
@@ -34,9 +34,19 @@ public class LocationScan {
     @Column(name = "scanned_at", nullable = false)
     private Instant scannedAt;
 
+    /** Constructor for JPA. */
     protected LocationScan() {
     }
 
+    /**
+     * Creates a scan (see {@link Parcel#addLocation}).
+     *
+     * @param parcel    the parcel
+     * @param label     location description
+     * @param latitude  optional latitude
+     * @param longitude optional longitude
+     * @param scannedAt scan time
+     */
     LocationScan(Parcel parcel, String label, Double latitude, Double longitude, Instant scannedAt) {
         this.parcel = parcel;
         this.label = label;
@@ -45,18 +55,38 @@ public class LocationScan {
         this.scannedAt = scannedAt;
     }
 
+    /**
+     * Returns the label.
+     *
+     * @return the label
+     */
     public String getLabel() {
         return label;
     }
 
+    /**
+     * Returns the latitude.
+     *
+     * @return the latitude
+     */
     public Double getLatitude() {
         return latitude;
     }
 
+    /**
+     * Returns the longitude.
+     *
+     * @return the longitude
+     */
     public Double getLongitude() {
         return longitude;
     }
 
+    /**
+     * Returns the scanned at.
+     *
+     * @return the scanned at
+     */
     public Instant getScannedAt() {
         return scannedAt;
     }

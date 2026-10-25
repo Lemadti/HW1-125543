@@ -12,20 +12,20 @@ class ParcelLifecycleApiIT extends AbstractIntegrationTest {
 
     @Test
     void fullHappyPathRecordsEveryTransitionWithActor() {
-        JsonNode reg = register(CENTRUM, "M", "M-07", 48);
+        JsonNode reg = register(FORUM, "M", "M-07", 48);
         assertThat(reg.get("compartmentCode").asString()).isEqualTo("M-07");
         String tc = reg.get("trackingCode").asString();
 
-        String pin = deliverToLocker(CENTRUM, reg);
+        String pin = deliverToLocker(FORUM, reg);
         assertThat(state(tc)).isEqualTo("READY_FOR_PICKUP");
 
-        JsonNode opened = json(post("/api/v1/terminals/" + CENTRUM + "/pickups", "{\"code\":\"" + pin + "\"}"));
+        JsonNode opened = json(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"" + pin + "\"}"));
         assertThat(opened.get("outcome").asString()).isEqualTo("DOOR_OPENED");
-        post("/api/v1/terminals/" + CENTRUM + "/pickups/" + opened.get("sessionToken").asString() + "/door-closed", null);
+        post("/api/v1/terminals/" + FORUM + "/pickups/" + opened.get("sessionToken").asString() + "/door-closed", null);
 
         JsonNode track = json(get("/api/v1/parcels/" + tc));
         assertThat(track.get("state").asString()).isEqualTo("PICKED_UP");
-        assertThat(track.get("recipientName").asString()).isEqualTo("Piotr N.");
+        assertThat(track.get("recipientName").asString()).isEqualTo("João S.");
         assertThat(track.get("history")).extracting(h -> h.get("to").asString() + "/" + h.get("actor").asString())
                 .containsExactly("CREATED/PARTNER", "ON_ITS_WAY/COURIER", "READY_FOR_PICKUP/COURIER", "PICKED_UP/RECIPIENT");
         assertThat(track.get("history")).allSatisfy(h -> assertThat(h.get("at").asString()).isNotBlank());
@@ -33,42 +33,42 @@ class ParcelLifecycleApiIT extends AbstractIntegrationTest {
 
     @Test
     void compartmentIsFreedAfterPickupAndAvailabilityIsReported() {
-        long before = json(get("/api/v1/stations/" + CENTRUM)).get("station").get("free").get("m").asLong();
-        JsonNode reg = register(CENTRUM, "M", null, 24);
-        assertThat(json(get("/api/v1/stations/" + CENTRUM)).get("station").get("free").get("m").asLong()).isEqualTo(before - 1);
+        long before = json(get("/api/v1/stations/" + FORUM)).get("station").get("free").get("m").asLong();
+        JsonNode reg = register(FORUM, "M", null, 24);
+        assertThat(json(get("/api/v1/stations/" + FORUM)).get("station").get("free").get("m").asLong()).isEqualTo(before - 1);
 
-        String pin = deliverToLocker(CENTRUM, reg);
-        post("/api/v1/terminals/" + CENTRUM + "/pickups", "{\"code\":\"" + pin + "\"}");
+        String pin = deliverToLocker(FORUM, reg);
+        post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"" + pin + "\"}");
 
-        assertThat(json(get("/api/v1/stations/" + CENTRUM)).get("station").get("free").get("m").asLong()).isEqualTo(before);
+        assertThat(json(get("/api/v1/stations/" + FORUM)).get("station").get("free").get("m").asLong()).isEqualTo(before);
     }
 
     @Test
     void pickupCodeIsSingleUse() {
-        JsonNode reg = register(CENTRUM, "S", null, 24);
-        String pin = deliverToLocker(CENTRUM, reg);
-        assertThat(post("/api/v1/terminals/" + CENTRUM + "/pickups", "{\"code\":\"" + pin + "\"}"))
+        JsonNode reg = register(FORUM, "S", null, 24);
+        String pin = deliverToLocker(FORUM, reg);
+        assertThat(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"" + pin + "\"}"))
                 .hasStatus(HttpStatus.OK);
-        assertThat(post("/api/v1/terminals/" + CENTRUM + "/pickups", "{\"code\":\"" + pin + "\"}"))
+        assertThat(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"" + pin + "\"}"))
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
                 .bodyJson().extractingPath("$.code").isEqualTo("INVALID_CODE");
     }
 
     @Test
     void pickupCodeOnlyWorksAtItsStation() {
-        JsonNode reg = register(CENTRUM, "S", null, 24);
-        String pin = deliverToLocker(CENTRUM, reg);
-        assertThat(post("/api/v1/terminals/ORB-WAW-021/pickups", "{\"code\":\"" + pin + "\"}"))
+        JsonNode reg = register(FORUM, "S", null, 24);
+        String pin = deliverToLocker(FORUM, reg);
+        assertThat(post("/api/v1/terminals/ORB-AVR-002/pickups", "{\"code\":\"" + pin + "\"}"))
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 
     @Test
     void invalidEventsAreRejectedExplicitly() {
-        JsonNode reg = register(CENTRUM, "L", null, 24);
+        JsonNode reg = register(FORUM, "L", null, 24);
         String tc = reg.get("trackingCode").asString();
 
         // drop-off before the courier collected it
-        assertThat(post("/api/v1/terminals/" + CENTRUM + "/drop-offs", "{\"code\":\"" + reg.get("dropOffCode").asString() + "\"}"))
+        assertThat(post("/api/v1/terminals/" + FORUM + "/drop-offs", "{\"code\":\"" + reg.get("dropOffCode").asString() + "\"}"))
                 .hasStatus(HttpStatus.CONFLICT)
                 .bodyJson().extractingPath("$.currentState").isEqualTo("CREATED");
         // location update while CREATED
@@ -88,34 +88,34 @@ class ParcelLifecycleApiIT extends AbstractIntegrationTest {
 
     @Test
     void cancellationFreesTheCompartment() {
-        JsonNode reg = register(CENTRUM, "M", "M-11", 24);
+        JsonNode reg = register(FORUM, "M", "M-11", 24);
         assertThat(post("/api/v1/parcels/" + reg.get("trackingCode").asString() + "/cancel",
                 "{\"actor\":\"RECIPIENT\",\"reason\":\"changed my mind\"}")).hasStatus(HttpStatus.OK)
                 .bodyJson().extractingPath("$.state").isEqualTo("CANCELLED");
-        assertThat(register(CENTRUM, "M", "M-11", 24).get("compartmentCode").asString()).isEqualTo("M-11");
+        assertThat(register(FORUM, "M", "M-11", 24).get("compartmentCode").asString()).isEqualTo("M-11");
     }
 
     @Test
     void chosenCompartmentAlreadyTakenIs409() {
-        register(CENTRUM, "M", "M-15", 24);
-        assertThat(post("/api/v1/parcels", registerBody(CENTRUM, "M", "M-15", 24))).hasStatus(HttpStatus.CONFLICT)
+        register(FORUM, "M", "M-15", 24);
+        assertThat(post("/api/v1/parcels", registerBody(FORUM, "M", "M-15", 24))).hasStatus(HttpStatus.CONFLICT)
                 .bodyJson().extractingPath("$.code").isEqualTo("COMPARTMENT_NOT_AVAILABLE");
     }
 
     @Test
     void stationFullWhenNoCompatibleCompartmentLeft() {
-        register(CENTRUM, "L", null, 24);
-        register(CENTRUM, "L", null, 24);
-        register(CENTRUM, "L", null, 24);
-        assertThat(post("/api/v1/parcels", registerBody(CENTRUM, "L", null, 24))).hasStatus(HttpStatus.CONFLICT)
+        register(FORUM, "L", null, 24);
+        register(FORUM, "L", null, 24);
+        register(FORUM, "L", null, 24);
+        assertThat(post("/api/v1/parcels", registerBody(FORUM, "L", null, 24))).hasStatus(HttpStatus.CONFLICT)
                 .bodyJson().extractingPath("$.code").isEqualTo("STATION_FULL");
-        assertThat(get("/api/v1/stations?size=L")).bodyJson().extractingPath("$[?(@.code=='ORB-WAW-014')]").asArray().isEmpty();
+        assertThat(get("/api/v1/stations?size=L")).bodyJson().extractingPath("$[?(@.code=='ORB-AVR-001')]").asArray().isEmpty();
     }
 
     @Test
     void nearbySearchUsesTheGeocoderAndRanksByDistance() {
-        assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Chmielna 30, Warsaw")).hasStatus(HttpStatus.OK)
-                .bodyJson().extractingPath("$.stations[0].code").isEqualTo("ORB-WAW-014");
+        assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Rua de Coimbra 10, Aveiro")).hasStatus(HttpStatus.OK)
+                .bodyJson().extractingPath("$.stations[0].code").isEqualTo("ORB-AVR-001");
         assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Unknown street 999")).hasStatus(HttpStatus.NOT_FOUND)
                 .bodyJson().extractingPath("$.code").isEqualTo("ADDRESS_NOT_FOUND");
     }
@@ -123,7 +123,7 @@ class ParcelLifecycleApiIT extends AbstractIntegrationTest {
     @Test
     void geocoderUnavailableReturns503AndTheFallbackStillLists() {
         ((pt.ua.deti.tqs.orbit.adapter.geocoding.StubGeocoder) geocoder).setUnavailable(true);
-        assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Chmielna 30, Warsaw")).hasStatus(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Rua de Coimbra 10, Aveiro")).hasStatus(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(get("/api/v1/stations")).hasStatus(HttpStatus.OK).bodyJson().extractingPath("$.length()").isEqualTo(5);
     }
 

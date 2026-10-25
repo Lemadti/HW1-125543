@@ -23,19 +23,19 @@ class CachingGeocoderTest {
     private final MutableClock clock = MutableClock.fixedAt(TestData.T0);
     private final GeocoderPort provider = mock(GeocoderPort.class);
     private final CachingGeocoder cache = new CachingGeocoder(provider, clock, Duration.ofHours(24), Duration.ofHours(1), 2);
-    private final GeoPoint p = new GeoPoint(52.23, 21.01);
+    private final GeoPoint p = new GeoPoint(40.64, -8.65);
 
     @Test
     void cachesNormalisedAddressesUntilTtl() {
-        when(provider.geocode("Chmielna 30, Warsaw")).thenReturn(Optional.of(p));
+        when(provider.geocode("Rua de Coimbra 10, Aveiro")).thenReturn(Optional.of(p));
 
-        assertThat(cache.geocode("Chmielna 30, Warsaw")).contains(p);
-        assertThat(cache.geocode("  chmielna   30, WARSAW ")).contains(p);
-        verify(provider, times(1)).geocode("Chmielna 30, Warsaw");
+        assertThat(cache.geocode("Rua de Coimbra 10, Aveiro")).contains(p);
+        assertThat(cache.geocode("  rua de   coimbra 10, AVEIRO ")).contains(p);
+        verify(provider, times(1)).geocode("Rua de Coimbra 10, Aveiro");
 
         clock.advance(Duration.ofHours(24));
-        cache.geocode("Chmielna 30, Warsaw");
-        verify(provider, times(2)).geocode("Chmielna 30, Warsaw");
+        cache.geocode("Rua de Coimbra 10, Aveiro");
+        verify(provider, times(2)).geocode("Rua de Coimbra 10, Aveiro");
     }
 
     @Test

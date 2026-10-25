@@ -51,11 +51,11 @@ class ConcurrentAllocationIT extends AbstractIntegrationTest {
 
     @Test
     void lastCompartmentGoesToExactlyOnePartner() throws Exception {
-        register(CENTRUM, "M", "M-03", 24);
-        register(CENTRUM, "M", "M-07", 24);
-        register(CENTRUM, "M", "M-11", 24); // only M-15 left
+        register(FORUM, "M", "M-03", 24);
+        register(FORUM, "M", "M-07", 24);
+        register(FORUM, "M", "M-11", 24); // only M-15 left
 
-        Map<Integer, Long> byStatus = fireConcurrently(registerBody(CENTRUM, "M", null, 24)).stream()
+        Map<Integer, Long> byStatus = fireConcurrently(registerBody(FORUM, "M", null, 24)).stream()
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
 
         assertThat(byStatus).containsEntry(201, 1L).containsEntry(409, (long) REQUESTS - 1);
@@ -67,15 +67,15 @@ class ConcurrentAllocationIT extends AbstractIntegrationTest {
 
     @Test
     void concurrentRequestsForTheSameChosenCompartment() throws Exception {
-        Map<Integer, Long> byStatus = fireConcurrently(registerBody(CENTRUM, "L", "L-16", 24)).stream()
+        Map<Integer, Long> byStatus = fireConcurrently(registerBody(FORUM, "L", "L-16", 24)).stream()
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
         assertThat(byStatus).containsEntry(201, 1L).containsEntry(409, (long) REQUESTS - 1);
     }
 
     @Test
     void freeCompartmentsAreSharedWithoutDuplicates() throws Exception {
-        // Small: 7 free at Centrum (S-06 out of service) -> 7 winners, all different compartments
-        Map<Integer, Long> byStatus = fireConcurrently(registerBody(CENTRUM, "S", null, 24)).stream()
+        // Small: 7 free at Fórum Aveiro (S-06 out of service) -> 7 winners, all different compartments
+        Map<Integer, Long> byStatus = fireConcurrently(registerBody(FORUM, "S", null, 24)).stream()
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
         assertThat(byStatus).containsEntry(201, 7L).containsEntry(409, (long) REQUESTS - 7);
         Integer distinct = jdbc.queryForObject("SELECT count(DISTINCT compartment_id) FROM parcel", Integer.class);

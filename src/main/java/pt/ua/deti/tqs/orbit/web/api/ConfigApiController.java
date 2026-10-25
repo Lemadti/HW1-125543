@@ -7,16 +7,27 @@ import org.springframework.web.bind.annotation.RestController;
 import pt.ua.deti.tqs.orbit.config.OrbitProperties;
 import pt.ua.deti.tqs.orbit.web.api.dto.PublicConfig;
 
+/** REST endpoint with the public business parameters used by the pages. */
 @RestController
 @Tag(name = "Configuration")
 public class ConfigApiController {
 
     private final OrbitProperties properties;
 
+    /**
+     * Creates the controller.
+     *
+     * @param properties business rules
+     */
     public ConfigApiController(OrbitProperties properties) {
         this.properties = properties;
     }
 
+    /**
+     * {@code GET /api/v1/config}: public business parameters for the pages.
+     *
+     * @return lease options, price, currency, pickup window, search radius and assistance phone
+     */
     @GetMapping("/api/v1/config")
     @Operation(summary = "Public business parameters (lease options, prices, search radius)")
     public PublicConfig config() {

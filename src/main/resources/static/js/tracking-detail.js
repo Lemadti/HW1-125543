@@ -99,7 +99,7 @@
     $('state-badge').innerHTML = O.stateBadge(p.state);
     $('eta').innerHTML = eta(p);
     $('timeline').innerHTML = timeline(p);
-    $('updated').innerHTML = `${O.icon('refresh')} Last update ${O.fmtDateTime(new Date().toISOString())} (Warsaw time)`;
+    $('updated').innerHTML = `${O.icon('refresh')} Last update ${O.fmtDateTime(new Date().toISOString())} (Lisbon time)`;
     $('station-info').innerHTML = `
       <div><div class="strong">${O.esc(p.stationName)} · ${O.esc(p.stationCode)}</div><div class="muted small">${O.esc(p.stationAddress)}</div></div>
       <div><div class="muted tiny">Compartment</div><div class="strong" data-testid="compartment">${O.esc(p.compartmentCode)} · ${O.SIZE_LABELS[p.size]}</div></div>

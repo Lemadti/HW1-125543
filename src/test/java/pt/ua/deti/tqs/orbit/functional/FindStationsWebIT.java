@@ -11,15 +11,15 @@ class FindStationsWebIT extends AbstractWebIT {
     @Test
     void searchingAnAddressListsTheNearestStationsWithFreeCompartments() {
         open("/");
-        page.getByTestId("address-input").fill("Chmielna 30, Warsaw");
+        page.getByTestId("address-input").fill("Rua de Coimbra 10, Aveiro");
         page.getByTestId("search-button").click();
 
         assertThat(page.getByTestId("result-count")).hasText("5 stations nearby");
-        assertThat(page.getByTestId("station-name").first()).hasText("Centrum");
+        assertThat(page.getByTestId("station-name").first()).hasText("Fórum Aveiro");
         assertThat(page.getByTestId("station-availability").first()).containsText("lockers available");
 
         page.getByTestId("station-card").first().click();
-        assertThat(page.getByTestId("station-detail")).containsText("ORB-WAW-014");
+        assertThat(page.getByTestId("station-detail")).containsText("ORB-AVR-001");
         assertThat(page.getByTestId("free-m")).hasText("4");
     }
 
@@ -35,7 +35,7 @@ class FindStationsWebIT extends AbstractWebIT {
     void geocoderDownFallsBackToAllStations() {
         ((StubGeocoder) geocoder).setUnavailable(true);
         open("/");
-        page.getByTestId("address-input").fill("Chmielna 30, Warsaw");
+        page.getByTestId("address-input").fill("Rua de Coimbra 10, Aveiro");
         page.getByTestId("search-button").click();
 
         assertThat(page.locator("[data-alert]")).containsText("temporarily unavailable");

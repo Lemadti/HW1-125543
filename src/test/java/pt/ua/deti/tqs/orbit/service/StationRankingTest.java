@@ -29,12 +29,12 @@ import pt.ua.deti.tqs.orbit.support.TestProperties;
 /** Distance ranking belongs to our code; the geocoder is replaced by the in-process stub (a fake). */
 class StationRankingTest {
 
-    private static final GeoPoint ORIGIN = new GeoPoint(52.2325, 21.0111);
+    private static final GeoPoint ORIGIN = new GeoPoint(40.6405, -8.6538);
 
-    private final Station near = TestData.station(1, "NEAR", 52.2317, 21.0092);   // ~0.16 km
-    private final Station mid = TestData.station(2, "MID", 52.2337, 21.0190);     // ~0.55 km
-    private final Station far = TestData.station(3, "FAR", 52.2128, 21.0221);     // ~2.3 km
-    private final Station out = TestData.station(4, "OUT", 52.4064, 16.9252);     // Poznań
+    private final Station near = TestData.station(1, "NEAR", 40.6412, -8.6527);   // ~0.12 km
+    private final Station mid = TestData.station(2, "MID", 40.6440, -8.6400);     // ~1.23 km
+    private final Station far = TestData.station(3, "FAR", 40.6007, -8.6670);     // ~4.56 km
+    private final Station out = TestData.station(4, "OUT", 38.7223, -9.1393);     // Lisboa
 
     private final StationRepository stations = mock(StationRepository.class);
     private final CompartmentRepository compartments = mock(CompartmentRepository.class);
@@ -68,7 +68,7 @@ class StationRankingTest {
 
     @Test
     void honoursRadiusAndMaxResults() {
-        assertThat(service.rank(ORIGIN, List.of(far, mid, near), free(1, 1, 1), null, 1.0, 10))
+        assertThat(service.rank(ORIGIN, List.of(far, mid, near), free(1, 1, 1), null, 2.0, 10))
                 .extracting(StationSummary::code).containsExactly("NEAR", "MID");
         assertThat(service.rank(ORIGIN, List.of(far, mid, near), free(1, 1, 1), null, 5.0, 1))
                 .extracting(StationSummary::code).containsExactly("NEAR");
@@ -80,23 +80,23 @@ class StationRankingTest {
         when(compartments.countAllocatableByStationAndSize()).thenReturn(List.<Object[]>of(
                 new Object[]{1L, CompartmentSize.M, 2L}, new Object[]{2L, CompartmentSize.S, 3L}));
 
-        NearbySearchResult result = service.nearbyAddress("Chmielna 30, Warsaw", null);
+        NearbySearchResult result = service.nearbyAddress("Rua de Coimbra 10, Aveiro", null);
 
-        assertThat(result.originLatitude()).isEqualTo(52.2325);
+        assertThat(result.originLatitude()).isEqualTo(40.6405);
         assertThat(result.stations()).extracting(StationSummary::code).containsExactly("NEAR", "MID", "FAR");
         assertThat(result.stations().get(0).free()).isEqualTo(new SizeCounts(0, 2, 0));
     }
 
     @Test
     void unknownAddressIsReportedAsNotFound() {
-        assertThatThrownBy(() -> service.nearbyAddress("Nowhere 999", null))
+        assertThatThrownBy(() -> service.nearbyAddress("Rua Inexistente 999", null))
                 .isInstanceOfSatisfying(OrbitException.class, e -> assertThat(e.getCode()).isEqualTo("ADDRESS_NOT_FOUND"));
     }
 
     @Test
     void providerFailurePropagatesForTheFallback() {
         geocoder.setUnavailable(true);
-        assertThatThrownBy(() -> service.nearbyAddress("Chmielna 30, Warsaw", null))
+        assertThatThrownBy(() -> service.nearbyAddress("Rua de Coimbra 10, Aveiro", null))
                 .isInstanceOf(GeocodingUnavailableException.class);
     }
 

@@ -125,13 +125,29 @@ public class Parcel {
     @OrderBy("scannedAt ASC, id ASC")
     private List<LocationScan> locations = new ArrayList<>();
 
+    /** Constructor for JPA. */
     protected Parcel() {
     }
 
-    /** Registers a parcel: initial state CREATED, compartment reserved, transition recorded. */
+    /**
+     * Registers a parcel: initial state CREATED, compartment reserved and the first transition recorded.
+     * The drop-off deadline is {@code leaseStart + leaseHours}.
+     *
+     * @param trackingCode    public tracking code
+     * @param deliveryCode    QR code content for the label
+     * @param compartment     the reserved compartment (its station and size are copied)
+     * @param sender          sender contact
+     * @param recipient       recipient contact
+     * @param leaseStart      start of the lease
+     * @param leaseHours      lease duration in hours
+     * @param price           price charged
+     * @param dropOffCodeHash HMAC of the drop-off PIN
+     * @param now             registration time
+     * @return the new parcel
+     */
     public static Parcel register(String trackingCode, String deliveryCode, Compartment compartment,
-                                  Contact sender, Contact recipient, Instant leaseStart, int leaseHours,
-                                  BigDecimal price, String dropOffCodeHash, Instant now) {
+                                    Contact sender, Contact recipient, Instant leaseStart, int leaseHours,
+                                    BigDecimal price, String dropOffCodeHash, Instant now) {
         Parcel p = new Parcel();
         p.trackingCode = trackingCode;
         p.deliveryCode = deliveryCode;
@@ -153,8 +169,12 @@ public class Parcel {
     }
 
     /**
-     * Applies a lifecycle event.
+     * Applies a lifecycle event, validated by {@link ParcelStateMachine}, and records the transition.
      *
+     * @param event the event
+     * @param actor who triggers it
+     * @param at    when it happens
+     * @param note  optional note for the history
      * @return the recorded transition
      * @throws InvalidTransitionException if the event is not valid in the current state or for this actor
      */
@@ -166,6 +186,13 @@ public class Parcel {
         return t;
     }
 
+    /**
+     * Records the deposit: sets the pickup deadline and the pickup code, and invalidates the drop-off code.
+     *
+     * @param at             deposit time
+     * @param pickupDeadline end of the pickup window
+     * @param pickupCodeHash HMAC of the pickup PIN
+     */
     public void markDeposited(Instant at, Instant pickupDeadline, String pickupCodeHash) {
         this.depositedAt = at;
         this.pickupDeadline = pickupDeadline;
@@ -173,7 +200,13 @@ public class Parcel {
         this.dropOffCodeHash = null;
     }
 
-    /** Moves the reservation to another compartment of the same size (hardware failure / out of service). */
+    /**
+     * Moves the reservation to another compartment of the same size (hardware failure or out of service).
+     *
+     * @param other              the new compartment
+     * @param newDropOffCodeHash HMAC of the new drop-off PIN
+     * @throws IllegalArgumentException if the compartment size differs
+     */
     public void relocateTo(Compartment other, String newDropOffCodeHash) {
         if (other.getSize() != size) {
             throw new IllegalArgumentException("Compartment size mismatch");
@@ -182,111 +215,240 @@ public class Parcel {
         this.dropOffCodeHash = newDropOffCodeHash;
     }
 
+    /** Invalidates the pickup code (single use). */
     public void consumePickupCode() {
         this.pickupCodeHash = null;
     }
 
+    /**
+     * Starts a terminal interaction (door opened, waiting for confirmation).
+     *
+     * @param token     random session token
+     * @param expiresAt when the session expires
+     */
     public void openTerminalSession(String token, Instant expiresAt) {
         this.terminalSession = token;
         this.terminalSessionExpiresAt = expiresAt;
     }
 
+    /**
+     * Whether the given token is the current, unexpired terminal session.
+     *
+     * @param token token presented by the terminal
+     * @param now   current time
+     * @return true if valid
+     */
     public boolean hasTerminalSession(String token, Instant now) {
         return terminalSession != null && terminalSession.equals(token)
                 && terminalSessionExpiresAt != null && now.isBefore(terminalSessionExpiresAt);
     }
 
+    /** Ends the current terminal interaction. */
     public void clearTerminalSession() {
         this.terminalSession = null;
         this.terminalSessionExpiresAt = null;
     }
 
+    /**
+     * Adds a courier location scan.
+     *
+     * @param label     location description
+     * @param latitude  optional latitude
+     * @param longitude optional longitude
+     * @param at        scan time
+     * @return the new scan
+     */
     public LocationScan addLocation(String label, Double latitude, Double longitude, Instant at) {
         LocationScan scan = new LocationScan(this, label, latitude, longitude, at);
         locations.add(scan);
         return scan;
     }
 
+    /**
+     * The most recent location scan.
+     *
+     * @return the last scan, or empty if there is none
+     */
     public Optional<LocationScan> lastLocation() {
         return locations.isEmpty() ? Optional.empty() : Optional.of(locations.get(locations.size() - 1));
     }
 
+    /**
+     * Returns the ID.
+     *
+     * @return the ID
+     */
     public Long getId() {
         return id;
     }
 
+    /**
+     * Returns the tracking code.
+     *
+     * @return the tracking code
+     */
     public String getTrackingCode() {
         return trackingCode;
     }
 
+    /**
+     * Returns the delivery code.
+     *
+     * @return the delivery code
+     */
     public String getDeliveryCode() {
         return deliveryCode;
     }
 
+    /**
+     * Returns the station.
+     *
+     * @return the station
+     */
     public Station getStation() {
         return station;
     }
 
+    /**
+     * Returns the compartment.
+     *
+     * @return the compartment
+     */
     public Compartment getCompartment() {
         return compartment;
     }
 
+    /**
+     * Returns the size.
+     *
+     * @return the size
+     */
     public CompartmentSize getSize() {
         return size;
     }
 
+    /**
+     * Returns the state.
+     *
+     * @return the state
+     */
     public ParcelState getState() {
         return state;
     }
 
+    /**
+     * Returns the sender.
+     *
+     * @return the sender
+     */
     public Contact getSender() {
         return sender;
     }
 
+    /**
+     * Returns the recipient.
+     *
+     * @return the recipient
+     */
     public Contact getRecipient() {
         return recipient;
     }
 
+    /**
+     * Returns the lease start.
+     *
+     * @return the lease start
+     */
     public Instant getLeaseStart() {
         return leaseStart;
     }
 
+    /**
+     * Returns the lease hours.
+     *
+     * @return the lease hours
+     */
     public int getLeaseHours() {
         return leaseHours;
     }
 
+    /**
+     * Returns the price.
+     *
+     * @return the price
+     */
     public BigDecimal getPrice() {
         return price;
     }
 
+    /**
+     * Returns the created at.
+     *
+     * @return the created at
+     */
     public Instant getCreatedAt() {
         return createdAt;
     }
 
+    /**
+     * Returns the drop off deadline.
+     *
+     * @return the drop off deadline
+     */
     public Instant getDropOffDeadline() {
         return dropOffDeadline;
     }
 
+    /**
+     * Returns the deposited at.
+     *
+     * @return the deposited at
+     */
     public Instant getDepositedAt() {
         return depositedAt;
     }
 
+    /**
+     * Returns the pickup deadline.
+     *
+     * @return the pickup deadline
+     */
     public Instant getPickupDeadline() {
         return pickupDeadline;
     }
 
+    /**
+     * Returns the drop off code hash.
+     *
+     * @return the drop off code hash
+     */
     public String getDropOffCodeHash() {
         return dropOffCodeHash;
     }
 
+    /**
+     * Returns the pickup code hash.
+     *
+     * @return the pickup code hash
+     */
     public String getPickupCodeHash() {
         return pickupCodeHash;
     }
 
+    /**
+     * Returns the history.
+     *
+     * @return the history
+     */
     public List<ParcelTransition> getHistory() {
         return Collections.unmodifiableList(history);
     }
 
+    /**
+     * Returns the locations.
+     *
+     * @return the locations
+     */
     public List<LocationScan> getLocations() {
         return Collections.unmodifiableList(locations);
     }

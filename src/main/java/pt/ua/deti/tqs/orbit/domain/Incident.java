@@ -42,9 +42,20 @@ public class Incident {
 
     private String description;
 
+    /** Constructor for JPA. */
     protected Incident() {
     }
 
+    /**
+     * Creates an incident.
+     *
+     * @param compartment  the compartment that misbehaved
+     * @param trackingCode the parcel involved, or null
+     * @param type         kind of malfunction
+     * @param reportedBy   who reported it
+     * @param reportedAt   when it was reported
+     * @param description  free-text description
+     */
     public Incident(Compartment compartment, String trackingCode, IncidentType type, Actor reportedBy,
                     Instant reportedAt, String description) {
         this.compartment = compartment;
@@ -55,30 +66,65 @@ public class Incident {
         this.description = description;
     }
 
+    /**
+     * Returns the ID.
+     *
+     * @return the ID
+     */
     public Long getId() {
         return id;
     }
 
+    /**
+     * Returns the compartment.
+     *
+     * @return the compartment
+     */
     public Compartment getCompartment() {
         return compartment;
     }
 
+    /**
+     * Returns the tracking code.
+     *
+     * @return the tracking code
+     */
     public String getTrackingCode() {
         return trackingCode;
     }
 
+    /**
+     * Returns the type.
+     *
+     * @return the type
+     */
     public IncidentType getType() {
         return type;
     }
 
+    /**
+     * Returns the reported by.
+     *
+     * @return the reported by
+     */
     public Actor getReportedBy() {
         return reportedBy;
     }
 
+    /**
+     * Returns the reported at.
+     *
+     * @return the reported at
+     */
     public Instant getReportedAt() {
         return reportedAt;
     }
 
+    /**
+     * Returns the description.
+     *
+     * @return the description
+     */
     public String getDescription() {
         return description;
     }

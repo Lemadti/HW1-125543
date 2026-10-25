@@ -14,10 +14,21 @@ public class LoggingLockerHardware implements LockerHardwarePort {
 
     private final LockerHardwarePort delegate;
 
+    /**
+     * Wraps a hardware adapter.
+     *
+     * @param delegate the adapter whose calls are logged
+     */
     public LoggingLockerHardware(LockerHardwarePort delegate) {
         this.delegate = delegate;
     }
 
+    /**
+     * Delegates and logs the result (OPENED, DID_NOT_OPEN or UNREACHABLE).
+     *
+     * @param compartment the compartment to open
+     * @return the delegate's answer
+     */
     @Override
     public boolean openDoor(CompartmentRef compartment) {
         try {
@@ -30,6 +41,12 @@ public class LoggingLockerHardware implements LockerHardwarePort {
         }
     }
 
+    /**
+     * Delegates and logs the door status (or UNREACHABLE).
+     *
+     * @param compartment the compartment to read
+     * @return the delegate's answer
+     */
     @Override
     public DoorStatus readDoor(CompartmentRef compartment) {
         try {

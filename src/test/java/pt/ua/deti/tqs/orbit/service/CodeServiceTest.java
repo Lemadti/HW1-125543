@@ -48,8 +48,8 @@ class CodeServiceTest {
     }
 
     @Test
-    void trackingCodeUsesWarsawDate() {
-        // 23:30 UTC on 24 Oct is already 25 Oct in Warsaw (UTC+2 in summer time)
+    void trackingCodeUsesLisbonDate() {
+        // 23:30 UTC on 24 Oct is already 25 Oct in Lisbon (UTC+1 in summer time)
         String code = codes.newTrackingCode(Instant.parse("2026-10-24T23:30:00Z"));
         assertThat(code).matches(CodeService.TRACKING_CODE.pattern()).startsWith("ORB-261025-");
     }

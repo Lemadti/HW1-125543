@@ -35,6 +35,13 @@ public class CompartmentAllocator {
     private final ParcelRepository parcels;
     private final TransitionRecorder transitions;
 
+    /**
+     * Creates the allocator.
+     *
+     * @param compartments compartment repository
+     * @param parcels      parcel repository (for expired parcels in a compartment)
+     * @param transitions  records the automatic TO_RETURN transitions
+     */
     public CompartmentAllocator(CompartmentRepository compartments, ParcelRepository parcels,
                                 TransitionRecorder transitions) {
         this.compartments = compartments;
@@ -42,16 +49,27 @@ public class CompartmentAllocator {
         this.transitions = transitions;
     }
 
-    /** First allocatable compartment of that size, if any (does not reserve anything). */
+    /**
+     * First allocatable compartment of that size, without reserving anything.
+     *
+     * @param station the station
+     * @param size    parcel size
+     * @return the compartment, or empty if none is free
+     */
     public Optional<Compartment> findFree(Station station, CompartmentSize size) {
         List<Compartment> free = compartments.findAllocatable(station, size);
         return free.isEmpty() ? Optional.empty() : Optional.of(free.get(0));
     }
 
     /**
-     * Chooses the compartment for a new reservation.
+     * Chooses the compartment for a new reservation. Expired parcels in it become TO_RETURN.
+     * The caller must hold the station lock.
      *
+     * @param station       the (locked) station
+     * @param size          parcel size
      * @param preferredCode compartment chosen by the user, or null for automatic choice
+     * @return the chosen compartment
+     * @throws OrbitException STATION_FULL, COMPARTMENT_NOT_AVAILABLE, COMPARTMENT_NOT_FOUND or SIZE_MISMATCH
      */
     public Compartment allocate(Station station, CompartmentSize size, String preferredCode) {
         List<Compartment> free = compartments.findAllocatable(station, size);

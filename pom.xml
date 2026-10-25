@@ -188,6 +188,19 @@
                 </executions>
             </plugin>
 
+            <!-- API documentation: ./mvnw javadoc:javadoc -> target/reports/apidocs/index.html -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <configuration>
+                    <doclint>all</doclint>
+                    <failOnWarnings>true</failOnWarnings>
+                    <show>package</show>
+                    <windowtitle>Orbit Lockers API</windowtitle>
+                    <doctitle>Orbit Lockers ${project.version}</doctitle>
+                </configuration>
+            </plugin>
+
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>

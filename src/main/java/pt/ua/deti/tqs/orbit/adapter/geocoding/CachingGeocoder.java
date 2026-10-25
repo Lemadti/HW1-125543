@@ -27,6 +27,15 @@ public class CachingGeocoder implements GeocoderPort {
     private final int maxEntries;
     private final Map<String, Entry> cache = new ConcurrentHashMap<>();
 
+    /**
+     * Creates the caching decorator.
+     *
+     * @param delegate    the real geocoder
+     * @param clock       time source for expiry
+     * @param ttl         how long a found address is cached
+     * @param negativeTtl how long an unknown address is cached
+     * @param maxEntries  maximum number of cached addresses
+     */
     public CachingGeocoder(GeocoderPort delegate, Clock clock, Duration ttl, Duration negativeTtl, int maxEntries) {
         this.delegate = delegate;
         this.clock = clock;
@@ -35,6 +44,13 @@ public class CachingGeocoder implements GeocoderPort {
         this.maxEntries = maxEntries;
     }
 
+    /**
+     * Returns the cached result for the normalised address, or asks the delegate and caches its answer.
+     *
+     * @param address free-text address
+     * @return the coordinates, or empty if the address is unknown
+     * @throws pt.ua.deti.tqs.orbit.port.GeocodingUnavailableException if the delegate fails (failures are not cached)
+     */
     @Override
     public Optional<GeoPoint> geocode(String address) {
         String key = normalise(address);
@@ -53,10 +69,21 @@ public class CachingGeocoder implements GeocoderPort {
         return result;
     }
 
+    /**
+     * Number of cached addresses.
+     *
+     * @return the cache size
+     */
     public int size() {
         return cache.size();
     }
 
+    /**
+     * Normalises an address for cache lookups: trimmed, single spaces, lower case.
+     *
+     * @param address free-text address
+     * @return the normalised key
+     */
     static String normalise(String address) {
         return address.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }

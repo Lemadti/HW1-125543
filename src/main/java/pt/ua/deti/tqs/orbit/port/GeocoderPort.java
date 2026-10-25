@@ -9,6 +9,7 @@ public interface GeocoderPort {
     /**
      * Converts a free-text address into coordinates.
      *
+     * @param address free-text address, e.g. "Rua de Coimbra 10, Aveiro"
      * @return the coordinates, or empty if the provider does not know the address
      * @throws GeocodingUnavailableException if the provider is slow, down or over its usage limits
      */

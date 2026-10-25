@@ -3,7 +3,7 @@ Feature: Track a parcel (UC5)
   so that I know its current state and history.
 
   Scenario: Timestamped history with actors
-    Given a "M" parcel registered at station "ORB-WAW-014"
+    Given a "M" parcel registered at station "ORB-AVR-001"
     And the courier collected the parcel
     When I track the parcel
     Then the current state is "ON_ITS_WAY"

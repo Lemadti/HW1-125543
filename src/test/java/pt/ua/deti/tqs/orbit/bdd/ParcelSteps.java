@@ -62,7 +62,7 @@ public class ParcelSteps {
     private final JsonMapper json = JsonMapper.builder().build();
     private MvcTestResult last;
     private JsonNode registration;
-    private String station = AbstractIntegrationTest.CENTRUM;
+    private String station = AbstractIntegrationTest.FORUM;
     private String pickupCode;
     private String sessionToken;
     private String expiredTrackingCode;
@@ -252,10 +252,10 @@ public class ParcelSteps {
         assertThat(registration.get("dropOffCode").asString()).matches("\\d{6}");
     }
 
-    @Then("the price is {double} PLN")
+    @Then("the price is {double} EUR")
     public void price(double price) {
         assertThat(registration.get("price").asDouble()).isEqualTo(price);
-        assertThat(registration.get("currency").asString()).isEqualTo("PLN");
+        assertThat(registration.get("currency").asString()).isEqualTo("EUR");
     }
 
     @Then("the request is rejected with status {int} and code {string}")
@@ -307,7 +307,7 @@ public class ParcelSteps {
     public void recipientGetsPickupCode() {
         pickupCode = latestCode(trackingCode(), Notification.Type.PICKUP_CODE);
         assertThat(pickupCode).matches("\\d{6}").isNotEqualTo(registration.get("dropOffCode").asString());
-        assertThat(outbox.latest().get(0).notification().toEmail()).isEqualTo("piotr@example.com");
+        assertThat(outbox.latest().get(0).notification().toEmail()).isEqualTo("joao@example.com");
     }
 
     @Then("the terminal reports {string} with a replacement available")

@@ -34,7 +34,7 @@ import pt.ua.deti.tqs.orbit.service.AttemptGuard;
 public abstract class AbstractIntegrationTest {
 
     public static final Instant NOW = Instant.parse("2026-10-24T08:00:00Z");
-    public static final String CENTRUM = "ORB-WAW-014";
+    public static final String FORUM = "ORB-AVR-001";
 
     @LocalServerPort
     protected int port;
@@ -76,7 +76,7 @@ public abstract class AbstractIntegrationTest {
         jdbc.execute("DELETE FROM parcel_transition; DELETE FROM location_scan; DELETE FROM incident; DELETE FROM parcel;");
         jdbc.execute("UPDATE compartment SET status = 'IN_SERVICE', status_reason = NULL");
         jdbc.execute("UPDATE compartment SET status = 'OUT_OF_SERVICE', status_reason = 'Door sensor maintenance' "
-                + "WHERE code IN ('S-06', 'L-12') AND station_id = (SELECT id FROM station WHERE code = 'ORB-WAW-014')");
+                + "WHERE code IN ('S-06', 'L-12') AND station_id = (SELECT id FROM station WHERE code = 'ORB-AVR-001')");
     }
 
     // ------------------------------------------------------------------ API helpers
@@ -100,8 +100,8 @@ public abstract class AbstractIntegrationTest {
     public static String registerBody(String station, String size, String compartment, int hours) {
         return """
                 {"stationCode":"%s","size":"%s",%s"leaseHours":%d,
-                 "sender":{"name":"Anna Kowalska","email":"anna@example.com","phone":"+48 501 234 567"},
-                 "recipient":{"name":"Piotr Nowak","email":"piotr@example.com","phone":"+48 602 789 123"}}"""
+                 "sender":{"name":"Ana Silva","email":"ana@example.com","phone":"+351 912 345 678"},
+                 "recipient":{"name":"João Santos","email":"joao@example.com","phone":"+351 934 567 890"}}"""
                 .formatted(station, size, compartment == null ? "" : "\"compartmentCode\":\"" + compartment + "\",", hours);
     }
 

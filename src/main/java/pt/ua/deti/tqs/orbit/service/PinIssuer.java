@@ -13,6 +13,12 @@ import pt.ua.deti.tqs.orbit.repository.ParcelRepository;
 @Component
 public class PinIssuer {
 
+    /**
+     * A PIN and its HMAC.
+     *
+     * @param pin  the PIN in clear (returned or sent once, never stored)
+     * @param hash its HMAC, stored on the parcel
+     */
     public record IssuedPin(String pin, String hash) {
     }
 
@@ -22,11 +28,23 @@ public class PinIssuer {
     private final CodeService codes;
     private final ParcelRepository parcels;
 
+    /**
+     * Creates the issuer.
+     *
+     * @param codes   generates and hashes PINs
+     * @param parcels checks uniqueness per station
+     */
     public PinIssuer(CodeService codes, ParcelRepository parcels) {
         this.codes = codes;
         this.parcels = parcels;
     }
 
+    /**
+     * Issues a drop-off PIN unique among the station's CREATED and ON_ITS_WAY parcels.
+     *
+     * @param station the station
+     * @return the PIN and its hash
+     */
     public IssuedPin dropOffPin(Station station) {
         for (int i = 0; i < MAX_TRIES; i++) {
             String pin = codes.newPin();
@@ -38,6 +56,13 @@ public class PinIssuer {
         throw new IllegalStateException("Could not issue a unique drop-off PIN");
     }
 
+    /**
+     * Issues a pickup PIN unique among the station's collectable parcels and different from the drop-off PIN.
+     *
+     * @param station            the station
+     * @param dropOffHashToAvoid hash of the parcel's drop-off PIN
+     * @return the PIN and its hash
+     */
     public IssuedPin pickupPin(Station station, String dropOffHashToAvoid) {
         for (int i = 0; i < MAX_TRIES; i++) {
             String pin = codes.newPin();

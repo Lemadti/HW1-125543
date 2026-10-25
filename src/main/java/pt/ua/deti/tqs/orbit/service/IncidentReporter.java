@@ -22,12 +22,29 @@ public class IncidentReporter {
     private final NotifierPort notifier;
     private final Clock clock;
 
+    /**
+     * Creates the reporter.
+     *
+     * @param incidents incident repository
+     * @param notifier  sends the operator alert
+     * @param clock     time source
+     */
     public IncidentReporter(IncidentRepository incidents, NotifierPort notifier, Clock clock) {
         this.incidents = incidents;
         this.notifier = notifier;
         this.clock = clock;
     }
 
+    /**
+     * Records an incident and alerts the operator.
+     *
+     * @param compartment     the compartment that misbehaved
+     * @param trackingCode    parcel involved, or null
+     * @param type            kind of malfunction
+     * @param reportedBy      who reported it
+     * @param description     free text
+     * @param putOutOfService whether the compartment must be put out of service
+     */
     public void report(Compartment compartment, String trackingCode, IncidentType type, Actor reportedBy,
                        String description, boolean putOutOfService) {
         if (putOutOfService) {
@@ -38,7 +55,7 @@ public class IncidentReporter {
         log.warn("INCIDENT {} at {} parcel={} outOfService={} - {}", type, where, trackingCode, putOutOfService,
                 description);
         notifier.send(new Notification(Notification.Type.OPERATOR_ALERT, trackingCode, "Orbit operations",
-                "ops@orbit.example", "+48221002030", "Malfunction at " + where + ": " + type,
+                "ops@orbit.example", "+351234100200", "Malfunction at " + where + ": " + type,
                 description + (putOutOfService ? " Compartment put out of service." : "")));
     }
 }

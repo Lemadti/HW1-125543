@@ -11,12 +11,24 @@ import pt.ua.deti.tqs.orbit.domain.OrbitException;
 @ControllerAdvice(assignableTypes = PageController.class)
 public class PageExceptionHandler {
 
+    /** Creates the handler. */
+    public PageExceptionHandler() {
+        // no state
+    }
+
+    /**
+     * Shows the error page for unknown stations or parcels in page URLs.
+     *
+     * @param e     the exception
+     * @param model the view model
+     * @return the error view
+     */
     @ExceptionHandler(OrbitException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     String notFound(OrbitException e, Model model) {
         model.addAttribute("message", e.getMessage());
         model.addAttribute("demoEnabled", false);
-        model.addAttribute("assistancePhone", "+48 22 100 20 30");
+        model.addAttribute("assistancePhone", "+351 234 100 200");
         return "error-page";
     }
 }

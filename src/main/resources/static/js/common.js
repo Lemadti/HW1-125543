@@ -2,8 +2,8 @@
 (function () {
   'use strict';
 
-  const TZ = 'Europe/Warsaw';
-  const WARSAW = [52.2318, 21.0106];
+  const TZ = 'Europe/Lisbon';
+  const AVEIRO = [40.6405, -8.6538];
 
   const STATE_LABELS = {
     CREATED: 'Created', CANCELLED: 'Cancelled', ON_ITS_WAY: 'On its way', READY_FOR_PICKUP: 'Ready for pickup',
@@ -99,7 +99,7 @@
   function createMap(el, center, zoom) {
     if (!el || typeof L === 'undefined') return null;
     const map = L.map(el, { zoomControl: true, attributionControl: true, scrollWheelZoom: false })
-      .setView(center || WARSAW, zoom || 15);
+      .setView(center || AVEIRO, zoom || 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
@@ -194,7 +194,7 @@
   }
 
   window.Orbit = {
-    TZ, WARSAW, STATE_LABELS, SIZE_LABELS, SIZE_DIMS, esc, icon, api, fmtDateTime, fmtTime, stateBadge,
+    TZ, AVEIRO, STATE_LABELS, SIZE_LABELS, SIZE_DIMS, esc, icon, api, fmtDateTime, fmtTime, stateBadge,
     availabilityBadge, stationCard, createMap, showStations, renderBank, problemMessage, qs, freeOf,
     storeGet, storeSet
   };

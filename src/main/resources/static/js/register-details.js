@@ -6,7 +6,7 @@
   const stationCode = main.dataset.station;
   const compartmentCode = main.dataset.compartment;
   const size = (main.dataset.size || 'M').toUpperCase();
-  let cfg = { leaseHoursOptions: [24, 48, 72], defaultLeaseHours: 48, pricePerDay: 12, currency: 'PLN' };
+  let cfg = { leaseHoursOptions: [24, 48, 72], defaultLeaseHours: 48, pricePerDay: 3, currency: 'EUR' };
   let hours = 48;
   let station = null;
 
@@ -15,24 +15,24 @@
   const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const PHONE = /^\+?[0-9 ()-]{7,20}$/;
 
-  // Default lease start: now, rounded up to the next 10 minutes, as a Warsaw local time.
-  function warsawLocal(date) {
+  // Default lease start: now, rounded up to the next 10 minutes, as a Lisbon local time.
+  function lisbonLocal(date) {
     const parts = new Intl.DateTimeFormat('en-CA', { timeZone: O.TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
       .formatToParts(date).reduce((a, p) => (a[p.type] = p.value, a), {});
     return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
   }
-  // Convert a Warsaw wall-clock "YYYY-MM-DDTHH:mm" to an Instant (handles DST by probing the offset).
-  function warsawToInstant(local) {
+  // Convert a Lisbon wall-clock "YYYY-MM-DDTHH:mm" to an Instant (handles DST by probing the offset).
+  function lisbonToInstant(local) {
     if (!local) return null;
     const guess = new Date(local + ':00Z');
-    const asWarsaw = new Date(warsawLocal(guess) + ':00Z');
-    return new Date(guess.getTime() - (asWarsaw.getTime() - guess.getTime()));
+    const asLisbon = new Date(lisbonLocal(guess) + ':00Z');
+    return new Date(guess.getTime() - (asLisbon.getTime() - guess.getTime()));
   }
   const start = new Date(Math.ceil(Date.now() / 600000) * 600000);
-  $('lease-start').value = warsawLocal(start);
+  $('lease-start').value = lisbonLocal(start);
 
   function leaseEnd() {
-    const s = warsawToInstant($('lease-start').value);
+    const s = lisbonToInstant($('lease-start').value);
     return s ? new Date(s.getTime() + hours * 3600000) : null;
   }
 
@@ -71,7 +71,7 @@
     const total = (days * Number(cfg.pricePerDay)).toFixed(2);
     $('sum-duration').textContent = `${hours} hours`;
     $('sum-expires').textContent = end ? O.fmtDateTime(end.toISOString()) : '–';
-    $('lease-info').innerHTML = `${O.icon('clock')}<span>${hours}-hour lease · The courier must drop off the parcel by ${end ? O.fmtDateTime(end.toISOString()) : '–'} (Warsaw time). The recipient then has ${cfg.pickupWindowDays || 15} days to collect it.</span>`;
+    $('lease-info').innerHTML = `${O.icon('clock')}<span>${hours}-hour lease · The courier must drop off the parcel by ${end ? O.fmtDateTime(end.toISOString()) : '–'} (Lisbon time). The recipient then has ${cfg.pickupWindowDays || 15} days to collect it.</span>`;
     $('price-line').textContent = `${days} day${days > 1 ? 's' : ''} × ${Number(cfg.pricePerDay).toFixed(2)} ${cfg.currency} · VAT included`;
     $('price').textContent = `${total} ${cfg.currency}`;
     const ok = validate(false);
@@ -140,7 +140,7 @@
     const v = id => $(id).value.trim();
     const body = {
       stationCode, size, compartmentCode,
-      leaseStart: warsawToInstant(v('lease-start')).toISOString(),
+      leaseStart: lisbonToInstant(v('lease-start')).toISOString(),
       leaseHours: hours,
       sender: { name: v('s-name'), email: v('s-email'), phone: v('s-phone') },
       recipient: { name: v('r-name'), email: v('r-email'), phone: v('r-phone') }

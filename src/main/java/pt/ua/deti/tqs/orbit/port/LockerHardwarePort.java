@@ -11,10 +11,18 @@ public interface LockerHardwarePort {
     /**
      * Unlocks the compartment door.
      *
+     * @param compartment the compartment to open
      * @return true if the controller confirms the door is open; false if the lock did not release
+     * @throws HardwareUnavailableException if the station controller does not answer
      */
     boolean openDoor(CompartmentRef compartment);
 
-    /** Reads the door sensor. */
+    /**
+     * Reads the door sensor.
+     *
+     * @param compartment the compartment to read
+     * @return OPEN or CLOSED
+     * @throws HardwareUnavailableException if the station controller does not answer
+     */
     DoorStatus readDoor(CompartmentRef compartment);
 }

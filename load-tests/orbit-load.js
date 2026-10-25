@@ -7,8 +7,8 @@ import http from 'k6/http';
 import { check, group, sleep } from 'k6';
 
 const BASE = __ENV.BASE_URL || 'http://localhost:8080';
-const STATIONS = ['ORB-WAW-014', 'ORB-WAW-021', 'ORB-WAW-007', 'ORB-WAW-033', 'ORB-WAW-040'];
-const ADDRESSES = ['Chmielna 30, Warsaw', 'Marszałkowska 104, Warsaw', 'Nowy Świat 1, Warsaw', 'Puławska 10, Warsaw'];
+const STATIONS = ['ORB-AVR-001', 'ORB-AVR-002', 'ORB-AVR-003', 'ORB-AVR-004', 'ORB-AVR-005'];
+const ADDRESSES = ['Rua de Coimbra 10, Aveiro', 'Avenida Dr. Lourenço Peixinho 50, Aveiro', 'Universidade de Aveiro', 'Ílhavo'];
 const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
 export const options = {
@@ -38,15 +38,15 @@ const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
 export function setup() {
   // one parcel to track
-  const r = http.post(`${BASE}/api/v1/parcels`, JSON.stringify(body('ORB-WAW-033', 'S')), JSON_HEADERS);
+  const r = http.post(`${BASE}/api/v1/parcels`, JSON.stringify(body('ORB-AVR-004', 'S')), JSON_HEADERS);
   return { trackingCode: r.status === 201 ? r.json('trackingCode') : null };
 }
 
 function body(station, size) {
   return {
     stationCode: station, size, leaseHours: 24,
-    sender: { name: 'Load Test', email: 'load@example.com', phone: '+48 500 000 000' },
-    recipient: { name: 'Load Recipient', email: 'recipient@example.com', phone: '+48 600 000 000' },
+    sender: { name: 'Load Test', email: 'load@example.com', phone: '+351 910 000 000' },
+    recipient: { name: 'Load Recipient', email: 'recipient@example.com', phone: '+351 920 000 000' },
   };
 }
 

@@ -13,14 +13,14 @@ import pt.ua.deti.tqs.orbit.domain.Station;
 public final class TestData {
 
     public static final Instant T0 = Instant.parse("2026-10-24T08:00:00Z");
-    public static final Contact SENDER = new Contact("Anna Kowalska", "anna@example.com", "+48 501 234 567");
-    public static final Contact RECIPIENT = new Contact("Piotr Nowak", "piotr@example.com", "+48 602 789 123");
+    public static final Contact SENDER = new Contact("Ana Silva", "ana@example.com", "+351 912 345 678");
+    public static final Contact RECIPIENT = new Contact("João Santos", "joao@example.com", "+351 934 567 890");
 
     private TestData() {
     }
 
     public static Station station(long id, String code, double lat, double lon) {
-        Station s = new Station(code, "Station " + code, "Street 1", "00-001", "Warsaw", lat, lon, null);
+        Station s = new Station(code, "Station " + code, "Rua 1", "3810-001", "Aveiro", lat, lon, null);
         setId(s, id);
         return s;
     }

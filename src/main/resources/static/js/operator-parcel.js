@@ -5,7 +5,7 @@
   const code = document.getElementById('main').dataset.code;
   const $ = id => document.getElementById(id);
   const map = O.createMap($('map'), null, 15);
-  $('now').textContent = O.fmtDateTime(new Date().toISOString()) + ' CET';
+  $('now').textContent = O.fmtDateTime(new Date().toISOString()) + ' (Lisbon time)';
 
   // Diagram layout: row 1 is the happy path, row 2 the alternative branches.
   const NODES = [

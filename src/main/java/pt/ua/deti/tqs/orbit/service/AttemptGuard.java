@@ -29,18 +29,36 @@ public class AttemptGuard {
     private final Duration lockout;
     private final Map<String, State> states = new ConcurrentHashMap<>();
 
+    /**
+     * Creates the guard from {@code orbit.codes.max-failed-attempts} and {@code orbit.codes.lockout}.
+     *
+     * @param clock      time source
+     * @param properties business rules
+     */
     @Autowired
     public AttemptGuard(Clock clock, OrbitProperties properties) {
         this(clock, properties.codes().maxFailedAttempts(), properties.codes().lockout());
     }
 
+    /**
+     * Creates the guard with explicit limits (tests).
+     *
+     * @param clock             time source
+     * @param maxFailedAttempts consecutive failures that trigger the lockout
+     * @param lockout           how long the key stays blocked
+     */
     AttemptGuard(Clock clock, int maxFailedAttempts, Duration lockout) {
         this.clock = clock;
         this.maxFailedAttempts = maxFailedAttempts;
         this.lockout = lockout;
     }
 
-    /** @throws OrbitException (LOCKED) if the key is currently blocked */
+    /**
+     * Fails if the key is currently blocked; clears an expired lockout.
+     *
+     * @param key station code and code type, e.g. "ORB-AVR-001:PICK_UP"
+     * @throws OrbitException (LOCKED) if the key is blocked
+     */
     public void ensureNotLocked(String key) {
         State s = states.get(key);
         Instant now = clock.instant();
@@ -55,6 +73,7 @@ public class AttemptGuard {
     /**
      * Records a wrong code.
      *
+     * @param key station code and code type
      * @return remaining attempts before the lockout
      * @throws OrbitException (LOCKED) if this failure triggered the lockout
      */
@@ -71,10 +90,16 @@ public class AttemptGuard {
         return maxFailedAttempts - s.failures();
     }
 
+    /**
+     * Resets the counter after a correct code.
+     *
+     * @param key station code and code type
+     */
     public void recordSuccess(String key) {
         states.remove(key);
     }
 
+    /** Clears every counter and lockout (demo and tests). */
     public void resetAll() {
         states.clear();
     }
