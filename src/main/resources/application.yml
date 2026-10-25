@@ -1,0 +1,80 @@
+spring:
+  application:
+    name: orbit
+  datasource:
+    url: ${ORBIT_DB_URL:jdbc:postgresql://localhost:5432/orbit}
+    username: ${ORBIT_DB_USER:orbit}
+    password: ${ORBIT_DB_PASSWORD:orbit}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+  thymeleaf:
+    cache: true
+
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+  paths-to-match: /api/**
+
+logging:
+  level:
+    orbit: INFO
+    pt.ua.deti.tqs.orbit: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%-20.20logger{0}] %msg%n"
+
+# ---------------------------------------------------------------------------------------------
+# Orbit business rules (all configurable). See README "Business rules".
+# ---------------------------------------------------------------------------------------------
+orbit:
+  assistance-phone: "+48 22 100 20 30"
+  rules:
+    lease-hours-options: [24, 48, 72]   # drop-off window chosen by the partner (lease)
+    default-lease-hours: 48
+    price-per-day: 12.00               # per started day of lease, VAT included
+    currency: PLN
+    pickup-window: 15d                 # pickup allowed for 15 days after drop-off
+    max-lease-start-ahead: 7d
+    terminal-session-timeout: 5m       # time to close the door after it opened
+    deadline-check-interval: 60s
+  codes:
+    pin-length: 6
+    max-failed-attempts: 3             # consecutive wrong PINs per station terminal...
+    lockout: 1h                        # ...block code entry for 1 hour
+    hmac-secret: ${ORBIT_CODE_SECRET:dev-only-secret-change-me}
+  search:
+    radius-km: 5.0
+    max-results: 10
+  geocoding:
+    provider: ${ORBIT_GEOCODER:nominatim}   # nominatim | stub
+    base-url: https://nominatim.openstreetmap.org
+    user-agent: "OrbitLockers-TQS-HW1/1.0 (university project)"
+    country-codes: pl
+    connect-timeout: 2s
+    read-timeout: 3s
+    min-interval: 1s                   # Nominatim usage policy: max 1 request/second
+    cache-ttl: 24h
+    negative-cache-ttl: 1h
+  hardware:
+    auto-close: true                   # fake behaves as a working locker (demo configuration)
+  demo:
+    enabled: ${ORBIT_DEMO:true}
+    seed-parcels: ${ORBIT_DEMO_SEED:true}

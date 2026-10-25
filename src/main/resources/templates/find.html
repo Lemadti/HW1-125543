@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Find stations')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header(${nav}, 'Recipient', 'RC')}"></div>
+<main id="main">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Your neighbourhood, connected</div>
+      <h1 class="page-title">A locker around the corner.</h1>
+      <p class="page-sub">Find a nearby station to send, collect or return your parcel.</p>
+    </div>
+    <span class="small strong muted">24/7 access across Warsaw</span>
+  </div>
+
+  <div class="grid-2" id="search-root">
+    <div class="stack">
+      <div th:replace="~{fragments/search :: box('Search near an address')}"></div>
+      <div data-alert class="hidden" aria-live="polite"></div>
+      <div class="list-head"><span data-count data-testid="result-count" aria-live="polite">Stations</span>
+        <span class="muted small row"><svg width="14" height="14" aria-hidden="true"><use href="/img/icons.svg#sort"/></svg>Nearest first</span></div>
+      <div class="station-list" data-results data-testid="results"></div>
+      <p class="muted tiny" data-note></p>
+    </div>
+    <div class="stack">
+      <div class="map" id="map" aria-label="Map of locker stations" role="region">
+        <span class="map-label"><svg width="14" height="14" aria-hidden="true"><use href="/img/icons.svg#map"/></svg>Warsaw · Śródmieście</span>
+        <span class="map-legend"><span><i class="legend-dot" style="background:#d63a4e"></i>Locker station</span><span><i class="legend-dot" style="background:#3b6fe0"></i>Search location</span></span>
+      </div>
+      <section class="card hidden" id="station-detail" aria-live="polite" data-testid="station-detail"></section>
+    </div>
+  </div>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/search.js}"></script>
+<script th:src="@{/js/find.js}"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+# CI for Orbit. If the repository root is the TQS portfolio (project in /HW1-<number>), move this file to
+# <repo>/.github/workflows/ and change working-directory and the artifact paths to HW1-<number>.
+name: orbit-ci
+
+on:
+  push:
+  pull_request:
+
+env:
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for SonarQube blame information
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build and run all tests (unit, integration with Testcontainers, functional/Playwright, BDD)
+        run: ./mvnw -B verify
+      - name: SonarQube analysis + Quality Gate
+        if: ${{ env.SONAR_TOKEN != '' }}
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: >
+          ./mvnw -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.token=$SONAR_TOKEN -Dsonar.qualitygate.wait=true
+      - name: Test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            target/site/jacoco-merged
+            target/cucumber-report.html
+            target/surefire-reports
+            target/failsafe-reports

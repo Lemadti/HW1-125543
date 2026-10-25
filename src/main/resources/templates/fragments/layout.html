@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${title} + ' · Orbit Lockers'">Orbit Lockers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" th:href="@{/css/orbit.css}">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236236d9'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='white' stroke-width='2.5'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<th:block th:fragment="header(nav, persona, initials)">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="topbar"></div>
+  <header class="header">
+    <div class="header-inner">
+      <a class="brand" th:href="@{/}" aria-label="Orbit Lockers home">
+        <span class="brand-mark"><svg width="22" height="22" aria-hidden="true"><use href="/img/icons.svg#logo"/></svg></span>
+        orbit <span class="brand-sub">LOCKERS</span>
+      </a>
+      <nav class="nav" aria-label="Main">
+        <a th:href="@{/}" th:attr="aria-current=${nav == 'find'} ? 'page' : null" data-testid="nav-find">
+          <svg aria-hidden="true"><use href="/img/icons.svg#pin"/></svg>Find stations</a>
+        <a th:href="@{/register}" th:attr="aria-current=${nav == 'register'} ? 'page' : null" data-testid="nav-register">
+          <svg aria-hidden="true"><use href="/img/icons.svg#box"/></svg>Register a locker</a>
+        <a th:href="@{/tracking}" th:attr="aria-current=${nav == 'tracking'} ? 'page' : null" data-testid="nav-tracking">
+          <svg aria-hidden="true"><use href="/img/icons.svg#route"/></svg>Tracking</a>
+        <a th:href="@{/operator}" th:attr="aria-current=${nav == 'operator'} ? 'page' : null" data-testid="nav-operator">
+          <svg aria-hidden="true"><use href="/img/icons.svg#grid"/></svg>Operator</a>
+      </nav>
+      <div class="header-right">
+        <span class="lang" aria-label="Language: English">EN</span>
+        <span class="persona"><span class="avatar" aria-hidden="true" th:text="${initials}">RC</span><span th:text="${persona}">Recipient</span></span>
+      </div>
+    </div>
+  </header>
+</th:block>
+
+<th:block th:fragment="footer">
+  <footer class="footer">
+    <span><span class="status-dot" aria-hidden="true"></span>All systems operational</span>
+    <span class="footer-links">
+      <a th:href="@{/terminal}" data-testid="footer-terminal">Locker terminal</a>
+      <a th:href="@{/courier}" data-testid="footer-courier">Courier</a>
+      <a th:if="${demoEnabled}" th:href="@{/demo}" data-testid="footer-demo">Demo tools</a>
+      <a href="/swagger-ui.html">API docs</a>
+      <span>Warsaw, Poland · Local time: Europe/Warsaw</span>
+      <a href="#" th:attr="title='Assistance: ' + ${assistancePhone}">Help &amp; support ↗</a>
+    </span>
+  </footer>
+</th:block>
+
+<th:block th:fragment="scripts">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script th:src="@{/js/common.js}"></script>
+</th:block>
+
+</body>
+</html>

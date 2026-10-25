@@ -1,0 +1,10 @@
+# Profile for load tests: no external geocoding calls, no demo seed, quieter logs.
+orbit:
+  geocoding:
+    provider: stub
+  demo:
+    seed-parcels: false
+logging:
+  level:
+    orbit: WARN
+    pt.ua.deti.tqs.orbit: WARN

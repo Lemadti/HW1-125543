@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Station supervision')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header(${nav}, 'Operator', 'OP')}"></div>
+<main id="main" th:attr="data-station=${stationCode}">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow"><a href="/operator">Operator</a> / <span id="crumb" th:text="${stationCode}"></span></div>
+      <h1 class="page-title">Supervise the station.</h1>
+      <p class="page-sub">Parcels by state, expired parcels, malfunctions and compartment status.</p>
+    </div>
+    <div class="row small muted"><span class="badge badge-violet">Warsaw region</span><span id="now"></span></div>
+  </div>
+  <div class="grid-2">
+    <div class="stack">
+      <section class="card" id="station-card" data-testid="station-card"></section>
+      <section class="card" aria-labelledby="inc-title">
+        <div class="row-between"><h2 class="card-title" id="inc-title">Malfunction reports</h2><span class="badge badge-outline" id="inc-count">0</span></div>
+        <div id="incidents" class="stack" style="margin-top:10px" data-testid="incidents"></div>
+      </section>
+    </div>
+    <div class="stack">
+      <section class="card card-lg" aria-labelledby="bank-title">
+        <div class="row-between"><h2 class="card-title" id="bank-title">Compartments</h2><span class="muted tiny">Select a compartment to change its status</span></div>
+        <div class="grid-2-wide" style="grid-template-columns:1.2fr 1fr;gap:20px;margin-top:12px">
+          <div id="bank" data-testid="bank"></div>
+          <div id="cell-panel" aria-live="polite" data-testid="cell-panel"><p class="muted small">No compartment selected.</p></div>
+        </div>
+      </section>
+      <section class="card card-lg" aria-labelledby="parcels-title">
+        <div class="row-between"><h2 class="card-title" id="parcels-title">Station parcels</h2><span class="badge badge-outline" id="p-count">0</span></div>
+        <div class="row" style="flex-wrap:wrap;gap:6px;margin:12px 0" role="group" aria-label="Filter by state" id="filters"></div>
+        <div id="op-alert" class="hidden" role="alert"></div>
+        <div style="overflow-x:auto"><table class="table" data-testid="parcels-table">
+          <thead><tr><th scope="col">Tracking code</th><th scope="col">Locker</th><th scope="col">Sender → recipient</th><th scope="col">State</th><th scope="col">Deadline</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody id="parcels"></tbody>
+        </table></div>
+      </section>
+    </div>
+  </div>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/operator-station.js}"></script>
+</body>
+</html>

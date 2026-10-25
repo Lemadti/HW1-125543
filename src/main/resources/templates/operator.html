@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Operator')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header(${nav}, 'Operator', 'OP')}"></div>
+<main id="main">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Operator workspace</div>
+      <h1 class="page-title">A clear view of your network.</h1>
+      <p class="page-sub">Find a station, inspect its compartments and manage registered parcels.</p>
+    </div>
+    <div class="row small muted"><span class="badge badge-violet">Warsaw region</span><span id="now"></span></div>
+  </div>
+  <div class="grid-2" id="search-root">
+    <div class="stack">
+      <div th:replace="~{fragments/search :: box('Search near an address')}"></div>
+      <div data-alert class="hidden" aria-live="polite"></div>
+      <div class="list-head"><span data-count aria-live="polite">Stations</span><span class="muted small">Nearest first</span></div>
+      <div class="station-list" data-results data-testid="results"></div>
+    </div>
+    <div class="stack">
+      <div class="map" id="map" style="height:320px" role="region" aria-label="Map of stations">
+        <span class="map-label"><svg width="14" height="14" aria-hidden="true"><use href="/img/icons.svg#map"/></svg>Warsaw · Śródmieście</span>
+        <span class="map-legend"><span><i class="legend-dot" style="background:#d63a4e"></i>Locker station</span><span><i class="legend-dot" style="background:#3b6fe0"></i>Search location</span></span>
+      </div>
+      <section class="card card-lg" aria-labelledby="activity-title">
+        <div class="row-between"><h2 class="card-title" id="activity-title">Nearby parcel activity</h2><span class="badge badge-outline" id="updated">Updated</span></div>
+        <div style="overflow-x:auto"><table class="table" style="margin-top:10px" data-testid="activity">
+          <thead><tr><th scope="col">Tracking code</th><th scope="col">Station / locker</th><th scope="col">Registered to</th><th scope="col">Current state</th></tr></thead>
+          <tbody id="activity"></tbody>
+        </table></div>
+        <p class="muted tiny">Select a station or tracking code to inspect parcel details and allowed state transitions.</p>
+      </section>
+    </div>
+  </div>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/search.js}"></script>
+<script>
+(function () {
+  const O = window.Orbit;
+  document.getElementById('now').textContent = O.fmtDateTime(new Date().toISOString()) + ' CET';
+  const search = OrbitSearch.mount({
+    root: document.getElementById('search-root'),
+    map: O.createMap(document.getElementById('map')),
+    cardOptions: s => ({ href: '/operator/stations/' + encodeURIComponent(s.code) })
+  });
+  async function activity() {
+    const res = await O.api('GET', '/api/v1/operator/parcels/recent');
+    if (!res.ok) return;
+    document.getElementById('updated').textContent = 'Updated ' + O.fmtTime(new Date().toISOString());
+    document.getElementById('activity').innerHTML = res.data.length ? res.data.map(p => `
+      <tr>
+        <td><a class="strong" href="/operator/parcels/${encodeURIComponent(p.trackingCode)}">${O.esc(p.trackingCode)} ↗</a><div class="muted tiny">Created ${O.fmtDateTime(p.createdAt, false)}</div></td>
+        <td><a class="strong" style="color:inherit" href="/operator/stations/${encodeURIComponent(p.stationCode)}">${O.esc(p.stationName)} · ${O.esc(p.compartmentCode)}</a><div class="muted tiny">${O.esc(p.stationCode)}</div></td>
+        <td>${O.esc(p.senderName)}<div class="muted tiny">Recipient: ${O.esc(p.recipientName)}</div></td>
+        <td>${O.stateBadge(p.state)}</td>
+      </tr>`).join('') : '<tr><td colspan="4" class="muted">No parcels yet.</td></tr>';
+  }
+  activity();
+  setInterval(() => { activity(); search.refresh(); }, 60000);
+})();
+</script>
+</body>
+</html>

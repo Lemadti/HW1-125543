@@ -1,0 +1,17 @@
+# Test profile: no external calls, no demo seed, scheduler effectively off (tests call DeadlineService directly).
+orbit:
+  geocoding:
+    provider: stub
+  hardware:
+    auto-close: true
+  demo:
+    enabled: true
+    seed-parcels: false
+  rules:
+    deadline-check-initial-delay: 24h
+    deadline-check-interval: 24h
+logging:
+  level:
+    orbit: WARN
+    pt.ua.deti.tqs.orbit: WARN
+    org.testcontainers: WARN

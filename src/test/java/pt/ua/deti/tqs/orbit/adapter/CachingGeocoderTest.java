@@ -1,0 +1,69 @@
+package pt.ua.deti.tqs.orbit.adapter;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Duration;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import pt.ua.deti.tqs.orbit.adapter.geocoding.CachingGeocoder;
+import pt.ua.deti.tqs.orbit.config.MutableClock;
+import pt.ua.deti.tqs.orbit.domain.GeoPoint;
+import pt.ua.deti.tqs.orbit.port.GeocoderPort;
+import pt.ua.deti.tqs.orbit.port.GeocodingUnavailableException;
+import pt.ua.deti.tqs.orbit.support.TestData;
+
+/** A mock is used here on purpose: the oracle is the number of calls that reach the provider. */
+class CachingGeocoderTest {
+
+    private final MutableClock clock = MutableClock.fixedAt(TestData.T0);
+    private final GeocoderPort provider = mock(GeocoderPort.class);
+    private final CachingGeocoder cache = new CachingGeocoder(provider, clock, Duration.ofHours(24), Duration.ofHours(1), 2);
+    private final GeoPoint p = new GeoPoint(52.23, 21.01);
+
+    @Test
+    void cachesNormalisedAddressesUntilTtl() {
+        when(provider.geocode("Chmielna 30, Warsaw")).thenReturn(Optional.of(p));
+
+        assertThat(cache.geocode("Chmielna 30, Warsaw")).contains(p);
+        assertThat(cache.geocode("  chmielna   30, WARSAW ")).contains(p);
+        verify(provider, times(1)).geocode("Chmielna 30, Warsaw");
+
+        clock.advance(Duration.ofHours(24));
+        cache.geocode("Chmielna 30, Warsaw");
+        verify(provider, times(2)).geocode("Chmielna 30, Warsaw");
+    }
+
+    @Test
+    void notFoundIsCachedForAShorterTime() {
+        when(provider.geocode("x")).thenReturn(Optional.empty());
+        cache.geocode("x");
+        cache.geocode("x");
+        verify(provider, times(1)).geocode("x");
+        clock.advance(Duration.ofHours(1));
+        cache.geocode("x");
+        verify(provider, times(2)).geocode("x");
+    }
+
+    @Test
+    void failuresAreNotCached() {
+        when(provider.geocode("y"))
+                .thenThrow(new GeocodingUnavailableException(GeocodingUnavailableException.Reason.TIMEOUT, "slow"))
+                .thenReturn(Optional.of(p));
+        assertThatThrownBy(() -> cache.geocode("y")).isInstanceOf(GeocodingUnavailableException.class);
+        assertThat(cache.geocode("y")).contains(p);
+    }
+
+    @Test
+    void boundedSize() {
+        when(provider.geocode(org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.of(p));
+        cache.geocode("a");
+        cache.geocode("b");
+        cache.geocode("c");
+        assertThat(cache.size()).isEqualTo(2);
+    }
+}

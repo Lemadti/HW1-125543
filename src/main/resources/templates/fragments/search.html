@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="box(label)">
+  <form class="card" data-search-form role="search" aria-label="Search stations near an address">
+    <label for="address" th:text="${label}">Search near an address</label>
+    <div class="row">
+      <div class="input-icon" style="flex:1">
+        <svg aria-hidden="true"><use href="/img/icons.svg#search"/></svg>
+        <input id="address" class="input" data-search-input data-testid="address-input" type="search"
+               placeholder="e.g. Chmielna 30, Warsaw" autocomplete="street-address">
+      </div>
+      <button class="btn btn-primary" type="submit" data-testid="search-button" aria-label="Search">
+        <svg aria-hidden="true"><use href="/img/icons.svg#search"/></svg></button>
+    </div>
+    <div class="row-between" style="margin-top:10px">
+      <button type="button" class="link-btn small" data-locate>
+        <svg aria-hidden="true"><use href="/img/icons.svg#locate"/></svg>Use my location</button>
+      <span class="muted tiny" data-radius>Within 5 km</span>
+    </div>
+  </form>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="steps(current)">
+  <ol class="stepper" aria-label="Registration steps" style="list-style:none;margin:0;padding:0">
+    <li class="step" th:classappend="${current == 1} ? 'current' : 'done'" th:attr="aria-current=${current == 1} ? 'step' : null">
+      <span class="dot" th:text="${current > 1} ? '✓' : '1'">1</span>Find a station</li>
+    <li class="step-line" aria-hidden="true"></li>
+    <li class="step" th:classappend="${current == 2} ? 'current' : (${current > 2} ? 'done' : '')" th:attr="aria-current=${current == 2} ? 'step' : null">
+      <span class="dot" th:text="${current > 2} ? '✓' : '2'">2</span>Choose a locker</li>
+    <li class="step-line" aria-hidden="true"></li>
+    <li class="step" th:classappend="${current == 3} ? 'current' : ''" th:attr="aria-current=${current == 3} ? 'step' : null">
+      <span class="dot">3</span>Your details</li>
+  </ol>
+</th:block>
+</body>
+</html>

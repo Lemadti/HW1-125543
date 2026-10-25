@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Register a locker')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header(${nav}, 'Partner', 'PT')}"></div>
+<main id="main">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Register a locker</div>
+      <h1 class="page-title">Find the right fit.</h1>
+      <p class="page-sub">Choose your parcel size and a convenient station to get started.</p>
+    </div>
+    <div th:replace="~{fragments/stepper :: steps(1)}"></div>
+  </div>
+
+  <div class="grid-2" id="search-root">
+    <div class="stack">
+      <form class="card" data-search-form aria-label="Parcel size and location">
+        <fieldset style="border:0;padding:0;margin:0">
+          <legend class="label">How big is your parcel?</legend>
+          <div class="size-grid" role="radiogroup" aria-label="Parcel size" id="sizes">
+            <button type="button" class="size-option" role="radio" data-size="S" data-testid="size-S" aria-checked="false">
+              <svg aria-hidden="true"><use href="/img/icons.svg#box"/></svg><span class="name">Small</span><span class="dims">8 × 38 × 64 cm</span></button>
+            <button type="button" class="size-option" role="radio" data-size="M" data-testid="size-M" aria-checked="true">
+              <svg aria-hidden="true"><use href="/img/icons.svg#box"/></svg><span class="name">Medium</span><span class="dims">19 × 38 × 64 cm</span></button>
+            <button type="button" class="size-option" role="radio" data-size="L" data-testid="size-L" aria-checked="false">
+              <svg aria-hidden="true"><use href="/img/icons.svg#box"/></svg><span class="name">Large</span><span class="dims">41 × 38 × 64 cm</span></button>
+          </div>
+          <p class="muted tiny" style="margin:6px 0 14px">Maximum height × width × depth · Up to 25 kg</p>
+        </fieldset>
+        <label for="address">Where do you need a locker?</label>
+        <div class="row">
+          <div class="input-icon" style="flex:1">
+            <svg aria-hidden="true"><use href="/img/icons.svg#search"/></svg>
+            <input id="address" class="input" data-search-input data-testid="address-input" type="search" placeholder="e.g. Chmielna 30, Warsaw">
+          </div>
+          <button class="btn btn-primary" type="submit" data-testid="search-button" aria-label="Search">
+            <svg aria-hidden="true"><use href="/img/icons.svg#search"/></svg></button>
+        </div>
+        <div class="row-between" style="margin-top:10px">
+          <button type="button" class="link-btn small" data-locate><svg aria-hidden="true"><use href="/img/icons.svg#locate"/></svg>Use my location</button>
+          <span class="muted tiny" data-radius>Within 5 km</span>
+        </div>
+      </form>
+      <div data-alert class="hidden" aria-live="polite"></div>
+      <div class="list-head"><span data-count data-testid="result-count" aria-live="polite">Stations</span><span class="muted small">Nearest first</span></div>
+      <div class="station-list" data-results data-testid="results"></div>
+    </div>
+    <div class="map" id="map" role="region" aria-label="Map of matching stations">
+      <span class="map-label"><svg width="14" height="14" aria-hidden="true"><use href="/img/icons.svg#map"/></svg>Warsaw · Śródmieście</span>
+      <span class="map-legend"><span><i class="legend-dot" style="background:#d63a4e"></i>Locker station</span><span><i class="legend-dot" style="background:#3b6fe0"></i>Search location</span></span>
+    </div>
+  </div>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/search.js}"></script>
+<script>
+(function () {
+  const O = window.Orbit;
+  let size = O.qs('size') || 'M';
+  const buttons = document.querySelectorAll('#sizes [data-size]');
+  const paint = () => buttons.forEach(b => b.setAttribute('aria-checked', String(b.dataset.size === size)));
+  paint();
+  const search = OrbitSearch.mount({
+    root: document.getElementById('search-root'),
+    map: O.createMap(document.getElementById('map')),
+    getSize: () => size,
+    cardOptions: s => ({
+      href: `/register/${encodeURIComponent(s.code)}?size=${size}&address=${encodeURIComponent(document.getElementById('address').value)}`
+    })
+  });
+  buttons.forEach(b => b.addEventListener('click', () => { size = b.dataset.size; paint(); search.refresh(); }));
+})();
+</script>
+</body>
+</html>

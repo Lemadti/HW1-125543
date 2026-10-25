@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Demo tools')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header(${nav}, 'Demo', 'DM')}"></div>
+<main id="main">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Demo tools · disabled in production</div>
+      <h1 class="page-title">Behind the scenes.</h1>
+      <p class="page-sub">Read the notifications (no real SMS/email), inject hardware failures and fast-forward time.</p>
+    </div>
+  </div>
+  <div class="grid-2-wide">
+    <section class="card card-lg" aria-labelledby="inbox-title">
+      <div class="row-between"><h2 class="card-title" id="inbox-title">Notification inbox</h2>
+        <div class="row"><button class="btn btn-outline" id="refresh" type="button">Refresh</button><button class="btn btn-outline" id="clear" type="button">Clear</button></div></div>
+      <div id="inbox" class="stack" style="margin-top:12px" data-testid="inbox"></div>
+    </section>
+    <div class="stack">
+      <form class="card card-lg" id="fault-form" aria-labelledby="hw-title">
+        <h2 class="card-title" id="hw-title">Fake locker hardware</h2>
+        <p class="muted small">Inject a failure for one compartment. The fake otherwise behaves as a working locker.</p>
+        <label for="f-station">Station</label>
+        <select id="f-station" class="input"><option th:each="s : ${stations}" th:value="${s.code}" th:text="${s.name} + ' · ' + ${s.code}"></option></select>
+        <label for="f-comp" style="margin-top:10px">Compartment</label>
+        <input id="f-comp" class="input" value="M-07">
+        <label for="f-fault" style="margin-top:10px">Failure</label>
+        <select id="f-fault" class="input">
+          <option value="DOOR_WONT_OPEN">Door does not open</option>
+          <option value="DOOR_WONT_CLOSE">Door does not close</option>
+          <option value="UNREACHABLE">Controller not responding</option>
+        </select>
+        <div class="row" style="margin-top:12px"><button class="btn btn-primary" type="submit">Inject failure</button>
+          <button class="btn btn-outline" type="button" id="f-clear">Clear all failures</button></div>
+        <div id="faults" class="small muted" style="margin-top:10px"></div>
+      </form>
+      <section class="card card-lg" aria-labelledby="clock-title">
+        <h2 class="card-title" id="clock-title">Application clock</h2>
+        <p class="muted small">Moves the clock forward and runs the deadline check (drop-off deadline → CANCELLED, pickup window → EXPIRED).</p>
+        <div class="strong" id="clock-now">–</div>
+        <div class="row" style="margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-outline" data-hours="24" type="button">+24 h</button>
+          <button class="btn btn-outline" data-hours="72" type="button">+72 h</button>
+          <button class="btn btn-outline" data-hours="360" type="button">+15 days</button>
+          <button class="btn btn-outline" id="clock-reset" type="button">Reset</button>
+        </div>
+        <div id="clock-result" class="small" style="margin-top:10px" role="status"></div>
+      </section>
+    </div>
+  </div>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script>
+(function () {
+  const O = window.Orbit;
+  const $ = id => document.getElementById(id);
+  async function inbox() {
+    const r = await O.api('GET', '/api/v1/demo/notifications');
+    if (!r.ok) return;
+    $('inbox').innerHTML = r.data.length ? r.data.map(e => `
+      <div class="inbox-item" data-testid="inbox-item">
+        <div class="row-between"><span class="badge badge-violet">${O.esc(e.notification.type)}</span><span class="muted tiny">${O.fmtDateTime(e.sentAt)}</span></div>
+        <div class="strong small" style="margin-top:6px">${O.esc(e.notification.subject)}</div>
+        <div class="muted tiny">To ${O.esc(e.notification.toName)} &lt;${O.esc(e.notification.toEmail)}&gt; · ${O.esc(e.notification.toPhone)}</div>
+        <div class="small" style="margin-top:6px">${O.esc(e.notification.body)}</div>
+      </div>`).join('') : '<p class="muted small">No notifications yet.</p>';
+  }
+  async function faults() {
+    const r = await O.api('GET', '/api/v1/demo/hardware/faults');
+    if (r.ok) $('faults').textContent = r.data.length ? 'Active: ' + r.data.map(f => `${f.stationCode}/${f.compartmentCode} ${f.faults.join(',')}`).join(' · ') : 'No failures injected.';
+  }
+  async function clock(r) {
+    const c = r || await O.api('GET', '/api/v1/demo/clock');
+    if (c.ok) $('clock-now').textContent = `Now: ${O.fmtDateTime(c.data.now)} (offset +${c.data.offsetHours} h)`;
+  }
+  $('refresh').onclick = inbox;
+  $('clear').onclick = async () => { await O.api('DELETE', '/api/v1/demo/notifications'); inbox(); };
+  $('fault-form').onsubmit = async e => {
+    e.preventDefault();
+    await O.api('POST', '/api/v1/demo/hardware/faults', { stationCode: $('f-station').value, compartmentCode: $('f-comp').value.trim(), fault: $('f-fault').value });
+    faults();
+  };
+  $('f-clear').onclick = async () => { await O.api('DELETE', '/api/v1/demo/hardware/faults'); faults(); };
+  document.querySelectorAll('[data-hours]').forEach(b => b.onclick = async () => {
+    const r = await O.api('POST', '/api/v1/demo/clock/advance', { hours: Number(b.dataset.hours) });
+    if (r.ok) $('clock-result').textContent = `Deadline check: ${r.data.cancelled} cancelled, ${r.data.expired} expired.`;
+    clock(r); inbox();
+  });
+  $('clock-reset').onclick = async () => { await O.api('POST', '/api/v1/demo/clock/reset'); $('clock-result').textContent = ''; clock(); };
+  inbox(); faults(); clock();
+  setInterval(inbox, 10000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Your details')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header(${nav}, 'Partner', 'PT')}"></div>
+<main id="main" th:attr="data-station=${stationCode},data-compartment=${compartmentCode},data-size=${size}">
+  <div class="page-head" id="head">
+    <div>
+      <div class="eyebrow">Register a locker</div>
+      <h1 class="page-title">Make it yours.</h1>
+      <p class="page-sub">Set your lease and add contact details. We'll take care of the notifications.</p>
+    </div>
+    <div th:replace="~{fragments/stepper :: steps(3)}"></div>
+  </div>
+
+  <div class="grid-details" id="form-view">
+    <aside class="card card-lg" aria-labelledby="your-locker">
+      <div class="row-between"><h2 class="card-title" id="your-locker">Your locker</h2>
+        <a class="small" th:href="@{/register/{s}(s=${stationCode},size=${size})}">Change locker</a></div>
+      <div class="strong" style="margin-top:14px" id="loc-title">…</div>
+      <div class="muted small" id="loc-address"></div>
+      <div id="bank" style="margin-top:14px"></div>
+      <div class="row-between" style="margin-top:18px"><h3 class="card-title" style="font-size:17px">Compartment <span th:text="${compartmentCode}">M-07</span></h3>
+        <span class="badge badge-violet" id="size-badge">Medium</span></div>
+      <div class="panel-grey" style="margin-top:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div><div class="muted tiny">Height</div><div class="small strong" id="d-h">–</div></div>
+        <div><div class="muted tiny">Width</div><div class="small strong" id="d-w">–</div></div>
+        <div><div class="muted tiny">Depth</div><div class="small strong" id="d-d">–</div></div>
+        <div><div class="muted tiny">Max. weight</div><div class="small strong">25 kg</div></div>
+      </div>
+      <hr class="divider">
+      <div class="form-grid-2">
+        <div><div class="muted tiny">Lease duration</div><div class="strong" id="sum-duration">48 hours</div></div>
+        <div><div class="muted tiny">Drop-off deadline</div><div class="strong" id="sum-expires">–</div></div>
+      </div>
+    </aside>
+
+    <form class="card" id="reg-form" novalidate style="padding:0" aria-labelledby="form-title">
+      <div style="padding:22px 22px 6px">
+        <div class="row-between"><h2 class="card-title" id="form-title" style="font-size:17px">Lease &amp; contact details</h2><span class="muted tiny">* Required fields</span></div>
+        <div class="form-grid-2" style="margin-top:16px">
+          <div>
+            <label for="lease-start">Lease start (Warsaw time) *</label>
+            <input id="lease-start" class="input" type="datetime-local" required data-testid="lease-start">
+          </div>
+          <div>
+            <span class="label" id="dur-label">Duration *</span>
+            <div class="segmented" role="radiogroup" aria-labelledby="dur-label" id="durations"></div>
+          </div>
+        </div>
+        <div class="callout callout-violet small" style="margin-top:12px;padding:10px 12px" id="lease-info" aria-live="polite"></div>
+        <hr class="divider">
+        <fieldset style="border:0;padding:0;margin:0">
+          <legend class="row strong" style="margin-bottom:10px"><svg width="16" height="16" style="color:var(--accent)" aria-hidden="true"><use href="/img/icons.svg#user"/></svg>Sender contact</legend>
+          <div class="form-grid-3">
+            <div><label for="s-name">Full name *</label><input id="s-name" class="input" required autocomplete="name" data-testid="sender-name"><div class="field-error" id="s-name-err"></div></div>
+            <div><label for="s-email">Email address *</label><input id="s-email" class="input" type="email" required autocomplete="email" data-testid="sender-email"><div class="field-error" id="s-email-err"></div></div>
+            <div><label for="s-phone">Phone number *</label><input id="s-phone" class="input" type="tel" required autocomplete="tel" placeholder="+48" data-testid="sender-phone"><div class="field-error" id="s-phone-err"></div></div>
+          </div>
+        </fieldset>
+        <fieldset style="border:0;padding:0;margin:16px 0 0">
+          <legend class="row strong" style="margin-bottom:10px"><svg width="16" height="16" style="color:var(--accent)" aria-hidden="true"><use href="/img/icons.svg#user"/></svg>Recipient contact</legend>
+          <div class="form-grid-3">
+            <div><label for="r-name">Full name *</label><input id="r-name" class="input" required placeholder="Recipient's full name" data-testid="recipient-name"><div class="field-error" id="r-name-err"></div></div>
+            <div><label for="r-email">Email address *</label><input id="r-email" class="input" type="email" required placeholder="name@example.com" data-testid="recipient-email"><div class="field-error" id="r-email-err"></div></div>
+            <div><label for="r-phone">Phone number *</label><input id="r-phone" class="input" type="tel" required placeholder="+48" data-testid="recipient-phone"><div class="field-error" id="r-phone-err"></div></div>
+          </div>
+          <p class="muted tiny row" style="margin-top:10px"><svg width="14" height="14" aria-hidden="true"><use href="/img/icons.svg#info"/></svg>The recipient will receive their pickup code by email and SMS when the parcel arrives.</p>
+        </fieldset>
+        <hr class="divider">
+        <label class="checkbox"><input type="checkbox" id="terms" data-testid="terms"> I agree to the locker lease terms and privacy policy. *</label>
+        <div id="form-alert" class="hidden" style="margin-top:12px" role="alert"></div>
+      </div>
+      <div class="row-between" style="border-top:1px solid var(--border);padding:16px 22px;margin-top:14px">
+        <div>
+          <div class="muted tiny" id="price-line">2 days × 12.00 PLN · VAT included</div>
+          <div style="font-size:22px;font-weight:700" id="price" data-testid="price">24.00 PLN</div>
+          <div class="tiny" id="complete-hint" style="color:var(--text-2)">Add recipient details and accept the terms to continue.</div>
+        </div>
+        <button class="btn btn-green btn-lg" type="submit" id="submit" data-testid="submit" disabled>
+          <svg aria-hidden="true"><use href="/img/icons.svg#lock"/></svg>Submit registration</button>
+      </div>
+    </form>
+  </div>
+
+  <section id="confirmation" class="hidden" aria-live="polite" data-testid="confirmation"></section>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script th:src="@{/js/register-details.js}"></script>
+</body>
+</html>

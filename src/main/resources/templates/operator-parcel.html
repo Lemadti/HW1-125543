@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Parcel details')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header(${nav}, 'Operator', 'OP')}"></div>
+<main id="main" th:attr="data-code=${trackingCode}">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow"><a href="/operator">Operator</a> / <a id="crumb-station" href="#">Station</a> / Parcel details</div>
+      <h1 class="page-title">The details behind the delivery.</h1>
+      <p class="page-sub">Inspect the registration, current location and permitted lifecycle transitions.</p>
+    </div>
+    <div class="row small muted"><span class="badge badge-violet">Warsaw region</span><span id="now"></span></div>
+  </div>
+  <div id="not-found" class="hidden alert alert-error" role="alert"></div>
+  <div class="grid-2" id="content">
+    <div class="stack">
+      <a class="station-card selected" id="station-card" href="#"></a>
+      <div class="map map-sm" id="map" role="region" aria-label="Station map"></div>
+      <section class="card" aria-labelledby="sp-title">
+        <div class="row-between"><h2 class="card-title" id="sp-title">Station parcels</h2><span class="badge badge-outline" id="sp-count"></span></div>
+        <label for="sp-search" class="sr-only">Search tracking code</label>
+        <div class="input-icon" style="margin:12px 0"><svg aria-hidden="true"><use href="/img/icons.svg#search"/></svg>
+          <input id="sp-search" class="input" placeholder="Search tracking code"></div>
+        <div id="sp-list" class="stack"></div>
+      </section>
+    </div>
+    <div class="stack">
+      <section class="card card-lg" aria-labelledby="tc">
+        <div class="row-between"><div><div class="muted tiny">TRACKING CODE</div><h2 id="tc" style="font-size:24px" th:text="${trackingCode}">ORB</h2></div><span id="state" data-testid="state-badge"></span></div>
+        <div class="panel-grey form-grid-3" style="margin-top:14px;align-items:center" id="summary"></div>
+        <div class="form-grid-2" style="margin-top:16px" id="contacts"></div>
+        <hr class="divider">
+        <div class="form-grid-3" id="lease"></div>
+        <div class="callout callout-violet small" style="margin-top:14px" id="location"></div>
+      </section>
+      <section class="card card-lg" aria-labelledby="lc-title">
+        <div class="row-between"><h2 class="card-title" id="lc-title">Parcel lifecycle</h2><span class="badge badge-violet" id="lc-current"></span></div>
+        <p class="muted small">Valid transitions, not one sequential route. Cancellation and return are alternative branches.</p>
+        <div class="lifecycle" id="lifecycle" data-testid="lifecycle" aria-label="Lifecycle diagram"></div>
+        <div class="panel-grey small row" style="margin-top:16px" id="next-info"></div>
+        <div class="row" style="margin-top:14px;flex-wrap:wrap" id="op-actions"></div>
+        <div id="op-alert" class="hidden" role="alert" style="margin-top:10px"></div>
+      </section>
+      <section class="card card-lg" aria-labelledby="h-title">
+        <h2 class="card-title" id="h-title">Transition history</h2>
+        <div style="overflow-x:auto"><table class="table" style="margin-top:8px" data-testid="history">
+          <thead><tr><th scope="col">When</th><th scope="col">From → to</th><th scope="col">Event</th><th scope="col">Actor</th><th scope="col">Note</th></tr></thead>
+          <tbody id="history"></tbody></table></div>
+      </section>
+    </div>
+  </div>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/operator-parcel.js}"></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Courier')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header(${nav}, 'Courier', 'CR')}"></div>
+<main id="main">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Courier</div>
+      <h1 class="page-title">Pick up, move, deliver.</h1>
+      <p class="page-sub">Scan the parcel QR at the sender, report where it is, then drop it off at the locker terminal.</p>
+    </div>
+  </div>
+  <div class="form-grid-2" style="align-items:start">
+    <form class="card card-lg" id="collect-form" novalidate aria-labelledby="c-title">
+      <div class="row"><span class="icon-tile"><svg aria-hidden="true"><use href="/img/icons.svg#scan"/></svg></span>
+        <div><h2 class="card-title" id="c-title">Collect a parcel</h2><p class="muted small" style="margin:0">Scan the QR (delivery code) on the label.</p></div></div>
+      <label for="delivery" style="margin-top:16px">Delivery code</label>
+      <input id="delivery" class="input mono" placeholder="DLV-XXXXXXXXXXXX" data-testid="delivery-input" autocomplete="off">
+      <label for="c-loc" style="margin-top:12px">Location (optional)</label>
+      <input id="c-loc" class="input" placeholder="e.g. Pruszków sorting hub">
+      <button class="btn btn-primary btn-block" style="margin-top:14px" data-testid="collect-button" type="submit"><svg aria-hidden="true"><use href="/img/icons.svg#check"/></svg>Confirm collection</button>
+      <div id="c-result" class="hidden" style="margin-top:12px" role="status" data-testid="collect-result"></div>
+    </form>
+    <form class="card card-lg" id="loc-form" novalidate aria-labelledby="l-title">
+      <div class="row"><span class="icon-tile"><svg aria-hidden="true"><use href="/img/icons.svg#truck"/></svg></span>
+        <div><h2 class="card-title" id="l-title">Report location</h2><p class="muted small" style="margin:0">For parcels on their way.</p></div></div>
+      <label for="l-code" style="margin-top:16px">Tracking code</label>
+      <input id="l-code" class="input" placeholder="ORB-261024-0714" autocomplete="off">
+      <label for="l-label" style="margin-top:12px">Where is it?</label>
+      <input id="l-label" class="input" placeholder="e.g. Warsaw Wola depot · Towarowa 22">
+      <div class="form-grid-2" style="margin-top:12px">
+        <div><label for="l-lat">Latitude (optional)</label><input id="l-lat" class="input" inputmode="decimal"></div>
+        <div><label for="l-lon">Longitude (optional)</label><input id="l-lon" class="input" inputmode="decimal"></div>
+      </div>
+      <button class="btn btn-outline btn-block" style="margin-top:14px" type="submit">Send location</button>
+      <div id="l-result" class="hidden" style="margin-top:12px" role="status"></div>
+    </form>
+  </div>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script>
+(function () {
+  const O = window.Orbit;
+  const show = (id, ok, html) => { const el = document.getElementById(id); el.className = `alert alert-${ok ? 'success' : 'error'}`; el.innerHTML = `${O.icon(ok ? 'check' : 'alert')}<div>${html}</div>`; };
+  document.getElementById('collect-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const res = await O.api('POST', '/api/v1/courier/collections', { deliveryCode: document.getElementById('delivery').value.trim(), locationLabel: document.getElementById('c-loc').value.trim() || null });
+    if (res.ok) show('c-result', true, `Parcel <a href="/tracking/${encodeURIComponent(res.data.trackingCode)}">${O.esc(res.data.trackingCode)}</a> is on its way to ${O.esc(res.data.stationName)} (${O.esc(res.data.compartmentCode)}).`);
+    else show('c-result', false, O.esc(O.problemMessage(res)));
+  });
+  document.getElementById('loc-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const v = id => document.getElementById(id).value.trim();
+    const num = s => s === '' ? null : Number(s);
+    const res = await O.api('POST', `/api/v1/parcels/${encodeURIComponent(v('l-code').toUpperCase())}/locations`, { label: v('l-label'), latitude: num(v('l-lat')), longitude: num(v('l-lon')) });
+    if (res.ok) show('l-result', true, 'Location recorded.'); else show('l-result', false, O.esc(O.problemMessage(res)));
+  });
+})();
+</script>
+</body>
+</html>

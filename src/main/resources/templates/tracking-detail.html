@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Parcel tracking')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: header(${nav}, 'Recipient', 'RC')}"></div>
+<main id="main" th:attr="data-code=${trackingCode}">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Parcel tracking</div>
+      <h1 class="page-title" id="title" data-testid="tracking-title">Loading your parcel…</h1>
+      <p class="page-sub">The latest update, with every completed stop along the journey.</p>
+    </div>
+    <button class="btn btn-outline" id="copy" type="button" data-testid="code-chip"><svg aria-hidden="true"><use href="/img/icons.svg#copy"/></svg><span th:text="${trackingCode}">ORB</span></button>
+  </div>
+  <div id="not-found" class="hidden alert alert-error" role="alert"></div>
+  <div class="grid-2" id="content">
+    <div class="stack">
+      <section class="card card-lg" aria-labelledby="progress-title">
+        <div class="row-between"><h2 class="card-title" id="progress-title">Delivery progress</h2><span id="state-badge" data-testid="state-badge"></span></div>
+        <div class="eta" style="margin:14px 0 18px" id="eta"></div>
+        <ol class="timeline" id="timeline" data-testid="timeline"></ol>
+        <p class="muted tiny row" id="updated"><svg width="12" height="12" aria-hidden="true"><use href="/img/icons.svg#refresh"/></svg></p>
+        <div id="actions"></div>
+      </section>
+      <div class="form-grid-2">
+        <a class="btn btn-outline" href="/tracking"><svg aria-hidden="true"><use href="/img/icons.svg#search"/></svg>Track another</a>
+        <a class="btn btn-outline" th:href="'tel:' + ${assistancePhone}"><svg aria-hidden="true"><use href="/img/icons.svg#chat"/></svg>Get help</a>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="map map-md" id="map" role="region" aria-label="Parcel journey map">
+        <span class="map-label"><svg width="14" height="14" aria-hidden="true"><use href="/img/icons.svg#map"/></svg>Parcel journey · Warsaw</span>
+      </div>
+      <section class="card card-lg" aria-labelledby="station-title">
+        <div class="row-between"><h2 class="card-title row" id="station-title"><svg width="16" height="16" style="color:var(--red)" aria-hidden="true"><use href="/img/icons.svg#pin"/></svg>Your pickup station</h2><span class="badge badge-green">Open 24/7</span></div>
+        <div class="form-grid-3" style="margin-top:14px" id="station-info"></div>
+        <hr class="divider">
+        <p class="muted small row" style="margin:0" id="notice"></p>
+      </section>
+    </div>
+  </div>
+</main>
+<div th:replace="~{fragments/layout :: footer}"></div>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script th:src="@{/js/tracking-detail.js}"></script>
+</body>
+</html>
