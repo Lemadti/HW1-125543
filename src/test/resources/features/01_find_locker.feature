@@ -8,6 +8,14 @@ Feature: Find a locker (UC1)
     And the stations are sorted by distance
     And every listed station shows its free compartments per size
 
+  Scenario: The recipient chooses the search radius
+    When I search for stations near "Rua de Coimbra 10, Aveiro"
+    Then 5 stations are listed
+    When I search for stations within 2 km of "Rua de Coimbra 10, Aveiro"
+    Then 4 stations are listed
+    And station "Ílhavo Centro" is not listed
+    And the stations are sorted by distance
+
   Scenario: Selecting a station shows its compartments
     When I open the station "ORB-AVR-001"
     Then I see 16 compartments

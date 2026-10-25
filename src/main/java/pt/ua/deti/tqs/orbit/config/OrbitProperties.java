@@ -64,13 +64,15 @@ public record OrbitProperties(
     }
 
     /**
-     * Station search (UC1).
+     * Station search (UC1). The radius is chosen by the user for each search; these values only bound it.
      *
-     * @param radiusKm   maximum distance of the stations returned
-     * @param maxResults maximum number of stations returned
+     * @param radiusOptionsKm radius choices offered by the web pages (in addition to "any distance")
+     * @param maxRadiusKm     largest radius a client may request
+     * @param maxResults      maximum number of stations returned by an address search
      */
     public record Search(
-            @DefaultValue("5.0") double radiusKm,
+            @DefaultValue({"1", "2", "5", "10", "20"}) List<Double> radiusOptionsKm,
+            @DefaultValue("20.0") double maxRadiusKm,
             @DefaultValue("10") int maxResults) {
     }
 

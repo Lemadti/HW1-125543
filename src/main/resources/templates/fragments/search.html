@@ -16,7 +16,12 @@
     <div class="row-between" style="margin-top:10px">
       <button type="button" class="link-btn small" data-locate>
         <svg aria-hidden="true"><use href="/img/icons.svg#locate"/></svg>Use my location</button>
-      <span class="muted tiny" data-radius>Within 5 km</span>
+      <span class="row nowrap" style="gap:6px">
+        <label for="radius" class="tiny muted nowrap" style="margin:0">Radius</label>
+        <select id="radius" class="select-sm" data-radius-select data-testid="radius-select">
+          <option value="">Any distance</option>
+        </select>
+      </span>
     </div>
   </form>
 </th:block>

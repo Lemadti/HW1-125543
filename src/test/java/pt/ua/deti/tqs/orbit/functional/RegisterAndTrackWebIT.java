@@ -17,6 +17,8 @@ class RegisterAndTrackWebIT extends AbstractWebIT {
         page.getByTestId("size-M").click();
         page.getByTestId("address-input").fill("Rua de Coimbra 10, Aveiro");
         page.getByTestId("search-button").click();
+        // all stations are listed alphabetically on load; wait until the search has ranked them by distance
+        assertThat(page.getByTestId("result-count")).hasText("5 matching stations nearby");
         page.getByTestId("station-card").first().click();
 
         // step 2: choose a compartment in the front view

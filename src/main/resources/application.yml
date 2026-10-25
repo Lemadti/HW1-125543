@@ -61,7 +61,8 @@ orbit:
     lockout: 1h                        # ...block code entry for 1 hour
     hmac-secret: ${ORBIT_CODE_SECRET:dev-only-secret-change-me}
   search:
-    radius-km: 20.0
+    radius-options-km: [1, 2, 5, 10, 20]   # choices offered in the search box ("Any distance" is always offered)
+    max-radius-km: 20.0                    # largest radius a client may request (?radiusKm=)
     max-results: 10
   geocoding:
     provider: ${ORBIT_GEOCODER:nominatim}   # nominatim | stub

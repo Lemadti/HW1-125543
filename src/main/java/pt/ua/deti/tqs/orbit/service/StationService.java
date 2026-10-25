@@ -45,7 +45,7 @@ public class StationService {
      * @param compartments compartment repository
      * @param parcels      parcel repository
      * @param geocoder     geocoding port
-     * @param properties   search radius and result limit
+     * @param properties   maximum search radius and result limit
      */
     public StationService(StationRepository stations, CompartmentRepository compartments, ParcelRepository parcels,
                             GeocoderPort geocoder, OrbitProperties properties) {
@@ -71,48 +71,68 @@ public class StationService {
     }
 
     /**
-     * Geocodes the address and returns the stations within the search radius, nearest first.
+     * Geocodes the address and returns the stations within the chosen radius, nearest first.
      *
-     * @param address free-text address
-     * @param size    optional size filter
+     * @param address  free-text address
+     * @param size     optional size filter
+     * @param radiusKm radius chosen by the user, or null for any distance
      * @return the ranked stations
-     * @throws OrbitException ADDRESS_REQUIRED or ADDRESS_NOT_FOUND
+     * @throws OrbitException ADDRESS_REQUIRED, ADDRESS_NOT_FOUND or INVALID_RADIUS
      * @throws pt.ua.deti.tqs.orbit.port.GeocodingUnavailableException if the provider cannot answer
      */
-    public NearbySearchResult nearbyAddress(String address, CompartmentSize size) {
+    public NearbySearchResult nearbyAddress(String address, CompartmentSize size, Double radiusKm) {
+        validateRadius(radiusKm);
         if (address == null || address.isBlank()) {
             throw OrbitException.unprocessable("ADDRESS_REQUIRED", "Please enter an address");
         }
         GeoPoint origin = geocoder.geocode(address.trim())
                 .orElseThrow(() -> OrbitException.notFound("ADDRESS_NOT_FOUND",
                         "We could not find \"" + address.trim() + "\". Try adding the street number and city."));
-        return nearby(address.trim(), origin, size);
+        return nearby(address.trim(), origin, size, radiusKm);
     }
 
     /**
-     * Stations within the search radius of a point, nearest first.
+     * Stations within the chosen radius of a point, nearest first.
      *
-     * @param origin the point
-     * @param size   optional size filter
+     * @param origin   the point
+     * @param size     optional size filter
+     * @param radiusKm radius chosen by the user, or null for any distance
      * @return the ranked stations
+     * @throws OrbitException INVALID_RADIUS
      */
-    public NearbySearchResult nearbyPoint(GeoPoint origin, CompartmentSize size) {
-        return nearby(null, origin, size);
+    public NearbySearchResult nearbyPoint(GeoPoint origin, CompartmentSize size, Double radiusKm) {
+        validateRadius(radiusKm);
+        return nearby(null, origin, size, radiusKm);
+    }
+
+    /**
+     * Checks a user-chosen radius: positive and not above {@code orbit.search.max-radius-km}.
+     *
+     * @param radiusKm the radius, or null for any distance (always valid)
+     * @throws OrbitException INVALID_RADIUS
+     */
+    void validateRadius(Double radiusKm) {
+        if (radiusKm != null && (radiusKm.isNaN() || radiusKm <= 0 || radiusKm > search.maxRadiusKm())) {
+            throw new OrbitException(OrbitException.Kind.UNPROCESSABLE, "INVALID_RADIUS",
+                    "The search radius must be greater than 0 and at most " + search.maxRadiusKm() + " km",
+                    Map.of("maxRadiusKm", search.maxRadiusKm()));
+        }
     }
 
     /**
      * Ranks the stations around an origin.
      *
-     * @param query  the address searched, or null
-     * @param origin the origin point
-     * @param size   optional size filter
+     * @param query    the address searched, or null
+     * @param origin   the origin point
+     * @param size     optional size filter
+     * @param radiusKm maximum distance, or null for any distance
      * @return the result
      */
-    NearbySearchResult nearby(String query, GeoPoint origin, CompartmentSize size) {
+    NearbySearchResult nearby(String query, GeoPoint origin, CompartmentSize size, Double radiusKm) {
         Map<Long, SizeCounts> free = freeCounts();
-        List<StationSummary> ranked = rank(origin, stations.findAll(), free, size, search.radiusKm(),
-                search.maxResults());
-        return new NearbySearchResult(query, origin.latitude(), origin.longitude(), search.radiusKm(), ranked);
+        double limit = radiusKm == null ? Double.POSITIVE_INFINITY : radiusKm;
+        List<StationSummary> ranked = rank(origin, stations.findAll(), free, size, limit, search.maxResults());
+        return new NearbySearchResult(query, origin.latitude(), origin.longitude(), radiusKm, ranked);
     }
 
     /**
@@ -123,7 +143,7 @@ public class StationService {
      * @param all        candidate stations
      * @param free       free compartments per station id
      * @param size       optional size filter
-     * @param radiusKm   maximum distance
+     * @param radiusKm   maximum distance ({@link Double#POSITIVE_INFINITY} for any distance)
      * @param maxResults maximum number of stations
      * @return the ranked summaries
      */

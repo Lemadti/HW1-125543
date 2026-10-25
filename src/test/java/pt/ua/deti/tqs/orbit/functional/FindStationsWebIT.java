@@ -24,6 +24,33 @@ class FindStationsWebIT extends AbstractWebIT {
     }
 
     @Test
+    void allStationsAreListedBeforeAnySearch() {
+        open("/");
+        assertThat(page.getByTestId("result-count")).hasText("5 stations");
+        assertThat(page.getByTestId("station-card")).hasCount(5);
+        assertThat(page.locator("[data-note]")).containsText("Showing all stations");
+        assertThat(page.getByTestId("show-all")).isHidden();
+    }
+
+    @Test
+    void theUserChoosesTheSearchRadius() {
+        open("/");
+        page.getByTestId("address-input").fill("Rua de Coimbra 10, Aveiro");
+        page.getByTestId("search-button").click();
+        assertThat(page.getByTestId("result-count")).hasText("5 stations nearby");
+
+        page.getByTestId("radius-select").selectOption("2");
+        assertThat(page.getByTestId("result-count")).hasText("4 stations within 2 km");
+
+        page.getByTestId("radius-select").selectOption("1");
+        assertThat(page.getByTestId("result-count")).hasText("1 station within 1 km");
+
+        page.getByTestId("show-all").click();
+        assertThat(page.getByTestId("result-count")).hasText("5 stations");
+        assertThat(page.getByTestId("address-input")).hasValue("");
+    }
+
+    @Test
     void unknownAddressShowsAnError() {
         open("/");
         page.getByTestId("address-input").fill("Nowhere street 999");

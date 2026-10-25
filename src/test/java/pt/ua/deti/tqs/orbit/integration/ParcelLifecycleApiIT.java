@@ -121,6 +121,36 @@ class ParcelLifecycleApiIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void withoutARadiusEveryStationIsRankedAndWithOneTheFarOnesAreLeftOut() {
+        assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Rua de Coimbra 10, Aveiro"))
+                .hasStatus(HttpStatus.OK).bodyJson()
+                .hasPathSatisfying("$.stations.length()", v -> v.assertThat().isEqualTo(5))
+                .hasPathSatisfying("$.radiusKm", v -> v.assertThat().isNull());
+
+        // Ílhavo Centro is ~4.6 km away: inside 5 km, outside 2 km
+        assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Rua de Coimbra 10, Aveiro")
+                .param("radiusKm", "2"))
+                .hasStatus(HttpStatus.OK).bodyJson()
+                .hasPathSatisfying("$.stations.length()", v -> v.assertThat().isEqualTo(4))
+                .hasPathSatisfying("$.stations[?(@.code=='ORB-AVR-005')]", v -> v.assertThat().asArray().isEmpty())
+                .hasPathSatisfying("$.radiusKm", v -> v.assertThat().isEqualTo(2.0));
+        assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Rua de Coimbra 10, Aveiro")
+                .param("radiusKm", "5"))
+                .bodyJson().extractingPath("$.stations.length()").isEqualTo(5);
+    }
+
+    @Test
+    void radiusAboveTheConfiguredMaximumIs422() {
+        assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Rua de Coimbra 10, Aveiro")
+                .param("radiusKm", "500"))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT).bodyJson()
+                .hasPathSatisfying("$.code", v -> v.assertThat().isEqualTo("INVALID_RADIUS"))
+                .hasPathSatisfying("$.maxRadiusKm", v -> v.assertThat().isEqualTo(20.0));
+        assertThat(get("/api/v1/config")).bodyJson().extractingPath("$.radiusOptionsKm").asArray()
+                .containsExactly(1.0, 2.0, 5.0, 10.0, 20.0);
+    }
+
+    @Test
     void geocoderUnavailableReturns503AndTheFallbackStillLists() {
         ((pt.ua.deti.tqs.orbit.adapter.geocoding.StubGeocoder) geocoder).setUnavailable(true);
         assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Rua de Coimbra 10, Aveiro")).hasStatus(HttpStatus.SERVICE_UNAVAILABLE);

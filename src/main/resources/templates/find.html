@@ -18,7 +18,7 @@
       <div th:replace="~{fragments/search :: box('Search near an address')}"></div>
       <div data-alert class="hidden" aria-live="polite"></div>
       <div class="list-head"><span data-count data-testid="result-count" aria-live="polite">Stations</span>
-        <span class="muted small row"><svg width="14" height="14" aria-hidden="true"><use href="/img/icons.svg#sort"/></svg>Nearest first</span></div>
+        <button type="button" class="link-btn small hidden" data-show-all data-testid="show-all">Show all stations</button></div>
       <div class="station-list" data-results data-testid="results"></div>
       <p class="muted tiny" data-note></p>
     </div>

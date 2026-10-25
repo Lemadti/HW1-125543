@@ -48,29 +48,32 @@ public class StationApiController {
     /**
      * {@code GET /api/v1/stations/nearby}: stations near an address or a coordinate (UC1).
      *
-     * @param address free-text address (used when lat/lon are absent)
-     * @param lat     optional latitude
-     * @param lon     optional longitude
-     * @param size    optional size filter
+     * @param address  free-text address (used when lat/lon are absent)
+     * @param lat      optional latitude
+     * @param lon      optional longitude
+     * @param size     optional size filter
+     * @param radiusKm optional search radius chosen by the user; omitted means any distance
      * @return stations within the radius, nearest first
      */
     @GetMapping("/nearby")
     @Operation(summary = "Stations near an address (geocoded) or a coordinate, nearest first",
-            description = "Pass `address`, or `lat` and `lon`. 404 ADDRESS_NOT_FOUND if the address is unknown; "
+            description = "Pass `address`, or `lat` and `lon`, and optionally `radiusKm` (omitted = any distance; "
+                    + "422 INVALID_RADIUS if not in (0, max-radius-km]). 404 ADDRESS_NOT_FOUND if the address is unknown; "
                     + "503 GEOCODER_UNAVAILABLE if the provider is slow, down or over its usage limit "
                     + "(clients should fall back to GET /api/v1/stations).")
     public NearbySearchResult nearby(@RequestParam(required = false) String address,
                                      @RequestParam(required = false) Double lat,
                                      @RequestParam(required = false) Double lon,
-                                     @RequestParam(required = false) CompartmentSize size) {
+                                     @RequestParam(required = false) CompartmentSize size,
+                                     @RequestParam(required = false) Double radiusKm) {
         if (lat != null && lon != null) {
             try {
-                return stations.nearbyPoint(new GeoPoint(lat, lon), size);
+                return stations.nearbyPoint(new GeoPoint(lat, lon), size, radiusKm);
             } catch (IllegalArgumentException e) {
                 throw OrbitException.unprocessable("INVALID_COORDINATES", e.getMessage());
             }
         }
-        return stations.nearbyAddress(address, size);
+        return stations.nearbyAddress(address, size, radiusKm);
     }
 
     /**

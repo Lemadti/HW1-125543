@@ -153,6 +153,22 @@ public class ParcelSteps {
         last = mvc.get().uri("/api/v1/stations/nearby").param("address", address).exchange();
     }
 
+    @When("I search for stations within {int} km of {string}")
+    public void searchWithin(int km, String address) {
+        last = mvc.get().uri("/api/v1/stations/nearby").param("address", address).param("radiusKm", String.valueOf(km))
+                .exchange();
+    }
+
+    @Then("{int} stations are listed")
+    public void stationsListed(int n) {
+        assertThat(body().get("stations").size()).isEqualTo(n);
+    }
+
+    @Then("station {string} is not listed")
+    public void notListed(String name) {
+        body().get("stations").forEach(s -> assertThat(s.get("name").asString()).isNotEqualTo(name));
+    }
+
     @Then("the first station listed is {string}")
     public void firstStation(String name) {
         assertThat(last.getResponse().getStatus()).isEqualTo(200);

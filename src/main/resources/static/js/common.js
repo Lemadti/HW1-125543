@@ -129,7 +129,7 @@
         keyboard: false
       }));
       if (radiusKm) {
-        layer.addLayer(L.circle(origin, { radius: Math.min(radiusKm, 1.2) * 1000, color: '#9aa0b8', weight: 1, dashArray: '4 4', fillColor: '#8b8fa8', fillOpacity: .08 }));
+        layer.addLayer(L.circle(origin, { radius: radiusKm * 1000, color: '#9aa0b8', weight: 1, dashArray: '4 4', fillColor: '#8b8fa8', fillOpacity: .08 }));
       }
       bounds.push(origin);
     }

@@ -97,8 +97,9 @@ Real SMS/e-mail are out of scope. Every notification goes through the **notifier
 code) and stored in an in-memory outbox that the **Demo tools** page shows as an inbox. Use that inbox to read the
 pickup code "sent" to the recipient.
 
-1. **Find a locker (UC1):** on `/`, search `Rua de Coimbra 10, Aveiro`. Stations are ranked by distance. Click one to see
-   its free compartments.
+1. **Find a locker (UC1):** `/` lists every station when it opens. Search `Rua de Coimbra 10, Aveiro` to rank them by
+   distance, and pick a **radius** (any distance, or 1/2/5/10/20 km) to keep only the closest. *Show all stations*
+   goes back to the full list. Click a station to see its free compartments.
 2. **Register (UC2):** go to `/register`, choose *Medium* and a station, then pick a green compartment and continue.
    Fill in the lease and the contacts, then submit. The confirmation shows the **tracking code**, the **delivery code
    (QR)** and the **drop-off PIN**.
@@ -244,6 +245,7 @@ All values live under `orbit.*` in `src/main/resources/application.yml` and are 
 | Rule / theme | Value and rationale | Configured in | Tested in |
 |---|---|---|---|
 | **Compartment allocation** | A parcel only goes to an **in-service compartment of the same size** (S/M/L). One active reservation (CREATED, ON_ITS_WAY, READY_FOR_PICKUP) per compartment. A compartment holding an **EXPIRED** parcel *can* be allocated; the old parcel becomes TO_RETURN and the courier removes it on the next drop-off. The partner may pick a compartment (web front view) or let the system choose the first free one. | code: `CompartmentAllocator`; DB: partial unique index `uq_parcel_active_compartment` | `CompartmentAllocatorTest`, `RepositoryIT`, `ParcelLifecycleApiIT`, `02_register_parcel.feature` |
+| **Station search radius** | The **user chooses** the radius for each search: *Any distance* (default) or one of the configured options (1, 2, 5, 10, 20 km). The API accepts any `radiusKm` in (0, 20] km; anything else is **422 `INVALID_RADIUS`**. Without a search, the Find stations page lists **all stations** alphabetically. An address search returns at most 10 stations. | `orbit.search.radius-options-km`, `max-radius-km`, `max-results` | `StationRankingTest`, `ParcelLifecycleApiIT`, `FindStationsWebIT`, `01_find_locker.feature` |
 | **Station full** | No free compatible compartment: **409 `STATION_FULL`**. A chosen compartment that is already taken: **409 `COMPARTMENT_NOT_AVAILABLE`**. | | `ParcelLifecycleApiIT`, BDD |
 | **Two partners, last compartment** | Allocation locks the station row (`SELECT … FOR UPDATE`), and the partial unique index is a second line of defence. | `StationRepository.findByCodeForUpdate` | `ConcurrentAllocationIT` (24 concurrent HTTP requests) |
 | **Drop-off deadline (lease)** | The partner reserves the compartment for a **lease of 24, 48 or 72 h** (as in the mockups), starting now or up to 7 days ahead. The lease end is the drop-off deadline: a parcel still CREATED then is **CANCELLED by the system** and the compartment is released. | `orbit.rules.lease-hours-options`, `default-lease-hours`, `max-lease-start-ahead` | `DeadlineServiceTest`, `DeadlineAndReturnIT`, `06_deadlines.feature` |
@@ -291,7 +293,7 @@ Every error is `application/problem+json` with a stable machine-readable `code`:
 | 400 | `VALIDATION_FAILED` (with `errors{field: message}`), `MALFORMED_REQUEST` |
 | 404 | `STATION_NOT_FOUND`, `PARCEL_NOT_FOUND`, `COMPARTMENT_NOT_FOUND`, `ADDRESS_NOT_FOUND`, `DELIVERY_CODE_NOT_FOUND`, `SESSION_NOT_FOUND` |
 | 409 | `INVALID_TRANSITION`, `STATION_FULL`, `COMPARTMENT_NOT_AVAILABLE`, `NO_REPLACEMENT_AVAILABLE`, `NO_FAILURE_REPORTED`, `INVALID_STATE`, `DROP_OFF_DEADLINE_PASSED`, `CONCURRENT_UPDATE` |
-| 422 | `INVALID_CODE` (with `remainingAttempts`), `INVALID_LEASE_DURATION`, `INVALID_LEASE_START`, `SIZE_MISMATCH`, `INVALID_ACTOR`, `ADDRESS_REQUIRED`, `INVALID_COORDINATES` |
+| 422 | `INVALID_RADIUS` (with `maxRadiusKm`), `INVALID_CODE` (with `remainingAttempts`), `INVALID_LEASE_DURATION`, `INVALID_LEASE_START`, `SIZE_MISMATCH`, `INVALID_ACTOR`, `ADDRESS_REQUIRED`, `INVALID_COORDINATES` |
 | 429 | `TOO_MANY_ATTEMPTS` (with `lockedUntil`, `Retry-After` header) |
 | 503 | `GEOCODER_UNAVAILABLE` (with `reason`, `fallback: /api/v1/stations`, `Retry-After`), `HARDWARE_UNAVAILABLE` (with `assistancePhone`) |
 
@@ -300,12 +302,12 @@ Every error is `application/problem+json` with a stable machine-readable `code`:
 | Method | Path | Description | Responses |
 |---|---|---|---|
 | GET | `/stations?size=S\|M\|L` | All stations with free compartments per size; with `size`, only those with one free of that size | 200 |
-| GET | `/stations/nearby?address=…[&size=]` | Geocodes the address (Nominatim, results limited to Portugal) and returns stations within 5 km, nearest first | 200, 404 `ADDRESS_NOT_FOUND`, 422, 503 `GEOCODER_UNAVAILABLE` |
-| GET | `/stations/nearby?lat=…&lon=…[&size=]` | Same, from coordinates ("use my location") | 200, 422 |
+| GET | `/stations/nearby?address=…[&size=][&radiusKm=]` | Geocodes the address (Nominatim, results limited to Portugal) and returns stations nearest first. `radiusKm` is chosen by the user; omitted means any distance | 200, 404 `ADDRESS_NOT_FOUND`, 422 `INVALID_RADIUS` (outside (0, 20] km, with `maxRadiusKm`), 503 `GEOCODER_UNAVAILABLE` |
+| GET | `/stations/nearby?lat=…&lon=…[&size=][&radiusKm=]` | Same, from coordinates ("use my location") | 200, 422 |
 | GET | `/stations/{code}` | Station detail and the front view of every compartment (`AVAILABLE`/`RESERVED`/`OUT_OF_SERVICE`, `reservedUntil`) | 200, 404 |
 
 ```bash
-curl "http://localhost:8080/api/v1/stations/nearby?address=Rua%20de%20Coimbra%2010,%20Aveiro&size=M"
+curl "http://localhost:8080/api/v1/stations/nearby?address=Rua%20de%20Coimbra%2010,%20Aveiro&size=M&radiusKm=2"
 ```
 
 ### Parcels: partner and recipient (UC2, UC5)
@@ -378,7 +380,7 @@ must handle, not client errors.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/config` | Public business parameters for the pages (lease options, price, radius, assistance phone) |
+| GET | `/config` | Public business parameters for the pages (lease options, price, radius options and maximum, assistance phone) |
 | GET / DELETE | `/demo/notifications` | Demo inbox *(demo mode only)* |
 | GET / POST / DELETE | `/demo/hardware/faults` | Inject `{"stationCode","compartmentCode","fault":"DOOR_WONT_OPEN\|DOOR_WONT_CLOSE\|UNREACHABLE"}` *(demo only)* |
 | GET | `/demo/clock` · POST `/demo/clock/advance {"hours":72}` · POST `/demo/clock/reset` | Clock fast-forward, which also runs the deadline job *(demo only)* |
@@ -422,8 +424,8 @@ must handle, not client errors.
 
 | Command | Runs | Needs |
 |---|---|---|
-| `./mvnw test` | **Unit and slice tests** (surefire, `*Test`): 187 tests | nothing (no Docker) |
-| `./mvnw verify` | Everything above, plus **integration, functional (Playwright), accessibility and BDD** (failsafe, `*IT`): 83 more, and a merged JaCoCo report | Docker (Testcontainers starts `postgres:17-alpine`). Playwright downloads Chromium on first run. |
+| `./mvnw test` | **Unit and slice tests** (surefire, `*Test`): 197 tests | nothing (no Docker) |
+| `./mvnw verify` | Everything above, plus **integration, functional (Playwright), accessibility and BDD** (failsafe, `*IT`): 88 more, and a merged JaCoCo report | Docker (Testcontainers starts `postgres:17-alpine`). Playwright downloads Chromium on first run. |
 | `./mvnw verify -Dit.test='*WebIT'` | Only the browser tests | Docker |
 | `./mvnw verify -Dit.test=CucumberIT` | Only the BDD features (report at `target/cucumber-report.html`) | Docker |
 | `k6 run load-tests/orbit-load.js` | Load test (set `BASE_URL`; the app must run with `SPRING_PROFILES_ACTIVE=loadtest`) | a running app |
@@ -445,7 +447,7 @@ Reports:
 | Integration | `integration/*IT` | JPA + Flyway + partial unique index (`@DataJpaTest`), full API lifecycle, **concurrency**, time rules, hardware failures over HTTP, Nominatim client | Testcontainers PostgreSQL, **WireMock** for Nominatim, the in-app fakes |
 | Functional | `functional/*WebIT` | Browser journeys: find stations (and geocoder fallback), 3-step registration and tracking, **terminal drop-off and pickup**, wrong-code lockout, door failure and replacement, operator removal and out of service | Playwright (headless Chromium). External hosts are blocked so tests stay hermetic. |
 | Accessibility | `functional/AccessibilityWebIT` | axe-core WCAG 2.2 AA on 13 pages | |
-| Acceptance (BDD) | `src/test/resources/features/*.feature` + `bdd/ParcelSteps` | 20 scenarios for UC1–UC6, including **time-based** (`06_deadlines`) and **hardware failure** (`03_drop_off`) scenarios | Steps drive the **REST API**, the boundary every actor uses. Time and hardware are controlled through the fakes. |
+| Acceptance (BDD) | `src/test/resources/features/*.feature` + `bdd/ParcelSteps` | 21 scenarios for UC1–UC6, including **time-based** (`06_deadlines`) and **hardware failure** (`03_drop_off`) scenarios | Steps drive the **REST API**, the boundary every actor uses. Time and hardware are controlled through the fakes. |
 | Load | `load-tests/orbit-load.js` | 40 VUs browsing and tracking + 10 VUs registering and cancelling | Stub geocoder (`loadtest` profile) |
 
 All integration, functional and BDD tests share **one Spring context and one PostgreSQL container** (through the
@@ -463,10 +465,10 @@ context cache). Each test resets the database and the fakes.
 
 | Suite | Tests | Result |
 |---|---|---|
-| Unit + slice | 187 | ✅ |
-| Integration | 37 | ✅ |
-| Functional + accessibility | 26 | ✅ |
-| BDD (Cucumber) | 20 scenarios | ✅ |
+| Unit + slice | 197 | ✅ |
+| Integration | 39 | ✅ |
+| Functional + accessibility | 28 | ✅ |
+| BDD (Cucumber) | 21 scenarios | ✅ |
 | Load (k6, 50 VUs, 70 s) | p95 15.43 ms (all), 11.46 ms (reads), 0 failed of 8,218 | ✅ thresholds met |
 | Coverage (JaCoCo, unit + IT merged) | lines 92.8%, instructions 91.8%, branches 79.5% | |
 
@@ -524,7 +526,7 @@ orbit:
   rules:   { lease-hours-options: [24,48,72], default-lease-hours: 48, price-per-day: 3.00, currency: EUR,
              pickup-window: 15d, max-lease-start-ahead: 7d, terminal-session-timeout: 5m, deadline-check-interval: 60s }
   codes:   { pin-length: 6, max-failed-attempts: 3, lockout: 1h, hmac-secret: ${ORBIT_CODE_SECRET} }
-  search:  { radius-km: 5.0, max-results: 10 }
+  search:  { radius-options-km: [1, 2, 5, 10, 20], max-radius-km: 20.0, max-results: 10 }
   geocoding: { provider: nominatim|stub, base-url: https://nominatim.openstreetmap.org, country-codes: pt,
                connect-timeout: 2s, read-timeout: 3s, min-interval: 1s, cache-ttl: 24h, negative-cache-ttl: 1h }
   hardware: { auto-close: true }      # fake behaves as a working locker

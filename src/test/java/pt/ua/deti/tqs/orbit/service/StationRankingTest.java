@@ -80,29 +80,59 @@ class StationRankingTest {
         when(compartments.countAllocatableByStationAndSize()).thenReturn(List.<Object[]>of(
                 new Object[]{1L, CompartmentSize.M, 2L}, new Object[]{2L, CompartmentSize.S, 3L}));
 
-        NearbySearchResult result = service.nearbyAddress("Rua de Coimbra 10, Aveiro", null);
+        NearbySearchResult result = service.nearbyAddress("Rua de Coimbra 10, Aveiro", null, null);
 
         assertThat(result.originLatitude()).isEqualTo(40.6405);
         assertThat(result.stations()).extracting(StationSummary::code).containsExactly("NEAR", "MID", "FAR");
         assertThat(result.stations().get(0).free()).isEqualTo(new SizeCounts(0, 2, 0));
+        assertThat(result.radiusKm()).isNull();
+    }
+
+    @Test
+    void userChosenRadiusLimitsTheResults() {
+        when(stations.findAll()).thenReturn(List.of(far, near, mid));
+        when(compartments.countAllocatableByStationAndSize()).thenReturn(List.of());
+
+        NearbySearchResult result = service.nearbyAddress("Rua de Coimbra 10, Aveiro", null, 2.0);
+
+        assertThat(result.radiusKm()).isEqualTo(2.0);
+        assertThat(result.stations()).extracting(StationSummary::code).containsExactly("NEAR", "MID");
+        assertThat(service.nearbyPoint(new GeoPoint(40.6405, -8.6538), null, 1.0).stations())
+                .extracting(StationSummary::code).containsExactly("NEAR");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(doubles = {0.0, -1.0, 20.5, 100.0, Double.NaN})
+    void radiusOutsideTheAllowedRangeIsRejected(double radius) {
+        assertThatThrownBy(() -> service.nearbyAddress("Rua de Coimbra 10, Aveiro", null, radius))
+                .isInstanceOfSatisfying(OrbitException.class, e -> {
+                    assertThat(e.getCode()).isEqualTo("INVALID_RADIUS");
+                    assertThat(e.getDetails()).containsEntry("maxRadiusKm", 20.0);
+                });
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(doubles = {0.1, 1.0, 20.0})
+    void radiusWithinTheAllowedRangeIsAccepted(double radius) {
+        org.assertj.core.api.Assertions.assertThatNoException().isThrownBy(() -> service.validateRadius(radius));
     }
 
     @Test
     void unknownAddressIsReportedAsNotFound() {
-        assertThatThrownBy(() -> service.nearbyAddress("Rua Inexistente 999", null))
+        assertThatThrownBy(() -> service.nearbyAddress("Rua Inexistente 999", null, null))
                 .isInstanceOfSatisfying(OrbitException.class, e -> assertThat(e.getCode()).isEqualTo("ADDRESS_NOT_FOUND"));
     }
 
     @Test
     void providerFailurePropagatesForTheFallback() {
         geocoder.setUnavailable(true);
-        assertThatThrownBy(() -> service.nearbyAddress("Rua de Coimbra 10, Aveiro", null))
+        assertThatThrownBy(() -> service.nearbyAddress("Rua de Coimbra 10, Aveiro", null, null))
                 .isInstanceOf(GeocodingUnavailableException.class);
     }
 
     @Test
     void blankAddressIsRejected() {
-        assertThatThrownBy(() -> service.nearbyAddress("  ", null))
+        assertThatThrownBy(() -> service.nearbyAddress("  ", null, null))
                 .isInstanceOfSatisfying(OrbitException.class, e -> assertThat(e.getCode()).isEqualTo("ADDRESS_REQUIRED"));
     }
 

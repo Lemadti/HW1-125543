@@ -31,6 +31,7 @@
     cardOptions: s => ({
       selected: s.code === stationCode,
       href: `/register/${encodeURIComponent(s.code)}?size=${size}&address=${encodeURIComponent(document.getElementById('address').value)}`
+        + `&radius=${document.getElementById('radius').value}`
     })
   });
 

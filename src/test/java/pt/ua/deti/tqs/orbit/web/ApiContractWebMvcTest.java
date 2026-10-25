@@ -125,7 +125,7 @@ class ApiContractWebMvcTest {
 
     @Test
     void geocoderDownIs503WithFallbackHint() {
-        when(stations.nearbyAddress(anyString(), any())).thenThrow(
+        when(stations.nearbyAddress(anyString(), any(), any())).thenThrow(
                 new GeocodingUnavailableException(GeocodingUnavailableException.Reason.TIMEOUT, "slow"));
         assertThat(mvc.get().uri("/api/v1/stations/nearby?address=Chmielna"))
                 .hasStatus(HttpStatus.SERVICE_UNAVAILABLE)
@@ -137,9 +137,20 @@ class ApiContractWebMvcTest {
 
     @Test
     void invalidCoordinatesAre422() {
-        when(stations.nearbyPoint(any(), any())).thenThrow(new IllegalArgumentException("latitude out of range: 99.0"));
+        when(stations.nearbyPoint(any(), any(), any())).thenThrow(new IllegalArgumentException("latitude out of range: 99.0"));
         assertThat(mvc.get().uri("/api/v1/stations/nearby?lat=99&lon=21"))
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
+    }
+
+    @Test
+    void chosenRadiusIsPassedToTheService() {
+        when(stations.nearbyAddress("Rua de Coimbra 10, Aveiro", null, 2.0)).thenReturn(
+                new pt.ua.deti.tqs.orbit.service.view.NearbySearchResult("Rua de Coimbra 10, Aveiro", 40.64, -8.65, 2.0,
+                        java.util.List.of()));
+        assertThat(mvc.get().uri("/api/v1/stations/nearby").param("address", "Rua de Coimbra 10, Aveiro")
+                .param("radiusKm", "2"))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson().extractingPath("$.radiusKm").isEqualTo(2.0);
     }
 
     @Test

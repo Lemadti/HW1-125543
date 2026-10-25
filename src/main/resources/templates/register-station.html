@@ -39,11 +39,17 @@
         </div>
         <div class="row-between" style="margin-top:10px">
           <button type="button" class="link-btn small" data-locate><svg aria-hidden="true"><use href="/img/icons.svg#locate"/></svg>Use my location</button>
-          <span class="muted tiny" data-radius>Within 5 km</span>
+          <span class="row nowrap" style="gap:6px">
+            <label for="radius" class="tiny muted nowrap" style="margin:0">Radius</label>
+            <select id="radius" class="select-sm" data-radius-select data-testid="radius-select">
+              <option value="">Any distance</option>
+            </select>
+          </span>
         </div>
       </form>
       <div data-alert class="hidden" aria-live="polite"></div>
-      <div class="list-head"><span data-count data-testid="result-count" aria-live="polite">Stations</span><span class="muted small">Nearest first</span></div>
+      <div class="list-head"><span data-count data-testid="result-count" aria-live="polite">Stations</span>
+        <button type="button" class="link-btn small hidden" data-show-all>Show all stations</button></div>
       <div class="station-list" data-results data-testid="results"></div>
     </div>
     <div class="map" id="map" role="region" aria-label="Map of matching stations">
@@ -68,6 +74,7 @@
     getSize: () => size,
     cardOptions: s => ({
       href: `/register/${encodeURIComponent(s.code)}?size=${size}&address=${encodeURIComponent(document.getElementById('address').value)}`
+        + `&radius=${document.getElementById('radius').value}`
     })
   });
   buttons.forEach(b => b.addEventListener('click', () => { size = b.dataset.size; paint(); search.refresh(); }));
