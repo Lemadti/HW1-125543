@@ -80,19 +80,13 @@ public class Parcel {
     })
     private Contact recipient;
 
-    @Column(name = "lease_start", nullable = false)
-    private Instant leaseStart;
-
-    @Column(name = "lease_hours", nullable = false)
-    private int leaseHours;
-
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    /** End of the lease: the courier must collect and drop off the parcel until then. */
+    /** End of the drop-off window: the courier must collect and drop off the parcel until then (inclusive). */
     @Column(name = "drop_off_deadline", nullable = false)
     private Instant dropOffDeadline;
 
@@ -131,22 +125,20 @@ public class Parcel {
 
     /**
      * Registers a parcel: initial state CREATED, compartment reserved and the first transition recorded.
-     * The drop-off deadline is {@code leaseStart + leaseHours}.
      *
      * @param trackingCode    public tracking code
      * @param deliveryCode    QR code content for the label
      * @param compartment     the reserved compartment (its station and size are copied)
      * @param sender          sender contact
      * @param recipient       recipient contact
-     * @param leaseStart      start of the lease
-     * @param leaseHours      lease duration in hours
+     * @param dropOffDeadline end of the drop-off window
      * @param price           price charged
      * @param dropOffCodeHash HMAC of the drop-off PIN
      * @param now             registration time
      * @return the new parcel
      */
     public static Parcel register(String trackingCode, String deliveryCode, Compartment compartment,
-                                    Contact sender, Contact recipient, Instant leaseStart, int leaseHours,
+                                    Contact sender, Contact recipient, Instant dropOffDeadline,
                                     BigDecimal price, String dropOffCodeHash, Instant now) {
         Parcel p = new Parcel();
         p.trackingCode = trackingCode;
@@ -156,11 +148,9 @@ public class Parcel {
         p.size = compartment.getSize();
         p.sender = sender;
         p.recipient = recipient;
-        p.leaseStart = leaseStart;
-        p.leaseHours = leaseHours;
         p.price = price;
         p.createdAt = now;
-        p.dropOffDeadline = leaseStart.plusSeconds(leaseHours * 3600L);
+        p.dropOffDeadline = dropOffDeadline;
         p.dropOffCodeHash = dropOffCodeHash;
         p.state = ParcelState.CREATED;
         p.history.add(new ParcelTransition(p, null, ParcelState.CREATED, null, Actor.PARTNER, now,
@@ -241,6 +231,16 @@ public class Parcel {
     public boolean hasTerminalSession(String token, Instant now) {
         return terminalSession != null && terminalSession.equals(token)
                 && terminalSessionExpiresAt != null && now.isBefore(terminalSessionExpiresAt);
+    }
+
+    /**
+     * Whether a terminal interaction is in progress (a door was opened and not yet confirmed closed).
+     *
+     * @param now current time
+     * @return true if there is an unexpired terminal session
+     */
+    public boolean hasOpenTerminalSession(Instant now) {
+        return terminalSession != null && terminalSessionExpiresAt != null && now.isBefore(terminalSessionExpiresAt);
     }
 
     /** Ends the current terminal interaction. */
@@ -352,24 +352,6 @@ public class Parcel {
      */
     public Contact getRecipient() {
         return recipient;
-    }
-
-    /**
-     * Returns the lease start.
-     *
-     * @return the lease start
-     */
-    public Instant getLeaseStart() {
-        return leaseStart;
-    }
-
-    /**
-     * Returns the lease hours.
-     *
-     * @return the lease hours
-     */
-    public int getLeaseHours() {
-        return leaseHours;
     }
 
     /**

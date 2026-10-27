@@ -14,10 +14,20 @@ import org.junit.jupiter.api.Tag;
 import pt.ua.deti.tqs.orbit.support.AbstractIntegrationTest;
 
 /**
- * Browser tests (Playwright, headless Chromium) against the application on a random port.
- * <p>Stability: locators use data-testid / roles; Playwright auto-waits for elements and web-first assertions retry;
- * test data is arranged through the API before the journey; requests to external hosts (map tiles, CDN, fonts)
- * are blocked so tests are hermetic and never depend on the network.</p>
+ * Browser tests: the whole application on a random port, a real PostgreSQL, driven through a real browser (Playwright,
+ * headless Chromium).
+ *
+ * <p>Lifecycle (as in Labs 05/06): one browser for the whole class (static), a new context and page for every test, so
+ * nothing leaks between tests. Every test starts from a known state ({@link AbstractIntegrationTest#resetWorld()}).</p>
+ *
+ * <p>Front door / back door: what the user does and sees goes through the browser ({@code page}), with the locators a
+ * user would use — role and accessible name, label, visible text. A {@code data-testid} is used only for elements that
+ * have no role or name to find them by (counters, the state badge, the codes on the confirmation). Arranging data ("a
+ * parcel waiting for pickup") and checking what was stored go through the back door (services and repositories).</p>
+ *
+ * <p>Stability: Playwright auto-waits and its web-first assertions retry, so there is no sleep; requests to external
+ * hosts (map tiles, CDN, fonts) are blocked so the tests never depend on the network. For AssertJ, write
+ * {@code Assertions.assertThat(...)}: the static {@code assertThat} in the subclasses is Playwright's.</p>
  */
 @Tag("e2e")
 abstract class AbstractWebIT extends AbstractIntegrationTest {

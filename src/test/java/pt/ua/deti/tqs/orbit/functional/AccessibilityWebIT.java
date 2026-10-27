@@ -9,13 +9,16 @@ import com.deque.html.axecore.results.AxeResults;
 import com.deque.html.axecore.results.Rule;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /** NFR2: automated WCAG 2.2 AA checks (axe-core) on every page. Keyboard walkthrough is manual (see README). */
+@DisplayName("Accessibility (NFR2) — axe-core on every page")
 class AccessibilityWebIT extends AbstractWebIT {
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{0}")
+    @DisplayName("NFR2: the page has no WCAG 2.2 AA violation on load")
     @ValueSource(strings = {"/", "/register", "/register/ORB-AVR-001?size=M", "/register/ORB-AVR-001/M-03?size=M",
             "/tracking", "/operator", "/operator/stations/ORB-AVR-001", "/terminal", "/terminal/ORB-AVR-001",
             "/courier", "/demo"})
@@ -40,10 +43,11 @@ class AccessibilityWebIT extends AbstractWebIT {
                 .isEmpty();
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{0}")
+    @DisplayName("NFR2: the parcel detail pages have no WCAG 2.2 AA violation")
     @ValueSource(strings = {"tracking", "operator-parcel"})
     void detailPagesHaveNoWcagAaViolations(String kind) {
-        String tc = register(FORUM, "M", null, 24).get("trackingCode").asString();
+        String tc = register(FORUM, "M", null).trackingCode();
         open(kind.equals("tracking") ? "/tracking/" + tc : "/operator/parcels/" + tc);
         page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE, new Page.WaitForLoadStateOptions().setTimeout(20000));
         assertNoViolations();

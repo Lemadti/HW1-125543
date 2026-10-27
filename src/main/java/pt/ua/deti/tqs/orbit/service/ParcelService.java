@@ -1,7 +1,6 @@
 package pt.ua.deti.tqs.orbit.service;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pt.ua.deti.tqs.orbit.config.OrbitProperties;
 import pt.ua.deti.tqs.orbit.domain.Actor;
 import pt.ua.deti.tqs.orbit.domain.Compartment;
+import pt.ua.deti.tqs.orbit.domain.DropOffWindow;
 import pt.ua.deti.tqs.orbit.domain.OrbitException;
 import pt.ua.deti.tqs.orbit.domain.Parcel;
 import pt.ua.deti.tqs.orbit.domain.ParcelEvent;
@@ -32,9 +32,6 @@ public class ParcelService {
 
     private static final Logger LIFECYCLE_LOG = LoggerFactory.getLogger("orbit.lifecycle");
 
-    /** Tolerance for a lease start slightly in the past (clock skew, time spent filling the form). */
-    static final Duration LEASE_START_TOLERANCE = Duration.ofMinutes(15);
-
     private final StationRepository stations;
     private final ParcelRepository parcels;
     private final CompartmentAllocator allocator;
@@ -54,7 +51,7 @@ public class ParcelService {
      * @param allocator   compartment allocation rules
      * @param codes       tracking and delivery codes
      * @param pins        drop-off PINs
-     * @param pricing     lease options and price
+     * @param pricing     reservation price
      * @param transitions records transitions
      * @param notifier    informs the sender
      * @param clock       time source
@@ -76,36 +73,29 @@ public class ParcelService {
     }
 
     /**
-     * Registers a parcel and reserves a compartment (UC2). The station row is locked for the duration of the
+     * Registers a parcel and reserves a compartment (UC2). The drop-off deadline is {@code drop-off-working-days}
+     * working days after now (the allocation) and the price is the same for every parcel. The station row is locked
+     * for the duration of the
      * transaction, so concurrent registrations for the same station are serialised (and the partial unique index on
      * {@code parcel.compartment_id} is a second line of defence).
      *
-     * @param cmd station, size, optional compartment, lease and contacts
+     * @param cmd station, size, optional compartment and contacts
      * @return tracking code, delivery code, drop-off PIN and reservation details
-     * @throws OrbitException STATION_NOT_FOUND, STATION_FULL, COMPARTMENT_NOT_AVAILABLE, INVALID_LEASE_DURATION or
-     *         INVALID_LEASE_START
+     * @throws OrbitException STATION_NOT_FOUND, STATION_FULL, COMPARTMENT_NOT_AVAILABLE, COMPARTMENT_NOT_FOUND or
+     *         SIZE_MISMATCH
      */
     @Transactional
     public RegistrationResult register(RegisterParcelCommand cmd) {
         Instant now = clock.instant();
-        pricing.validateLeaseHours(cmd.leaseHours());
-        Instant leaseStart = cmd.leaseStart() == null ? now : cmd.leaseStart();
-        if (leaseStart.isBefore(now.minus(LEASE_START_TOLERANCE))) {
-            throw OrbitException.unprocessable("INVALID_LEASE_START", "Lease start cannot be in the past");
-        }
-        if (leaseStart.isAfter(now.plus(rules.maxLeaseStartAhead()))) {
-            throw OrbitException.unprocessable("INVALID_LEASE_START",
-                    "Lease start can be at most " + rules.maxLeaseStartAhead().toDays() + " days ahead");
-        }
-
         Station station = stations.findByCodeForUpdate(cmd.stationCode())
                 .orElseThrow(() -> OrbitException.notFound("STATION_NOT_FOUND",
                         "Station " + cmd.stationCode() + " not found"));
         Compartment compartment = allocator.allocate(station, cmd.size(), cmd.compartmentCode());
 
         PinIssuer.IssuedPin dropOff = pins.dropOffPin(station);
+        Instant dropOffDeadline = DropOffWindow.deadline(now, rules.dropOffWorkingDays(), rules.zone());
         Parcel parcel = Parcel.register(uniqueTrackingCode(now), uniqueDeliveryCode(), compartment, cmd.sender(),
-                cmd.recipient(), leaseStart, cmd.leaseHours(), pricing.price(cmd.leaseHours()), dropOff.hash(), now);
+                cmd.recipient(), dropOffDeadline, pricing.price(), dropOff.hash(), now);
         parcels.save(parcel);
         LIFECYCLE_LOG.info(
                 "TRANSITION parcel={} null -> CREATED event=REGISTER actor=PARTNER station={} compartment={}",
@@ -118,8 +108,8 @@ public class ParcelService {
                         + parcel.getDropOffDeadline() + ". Print the label with the QR code and drop-off PIN."));
 
         return new RegistrationResult(parcel.getTrackingCode(), parcel.getState(), station.getCode(),
-                station.getName(), compartment.getCode(), parcel.getSize(), parcel.getLeaseStart(),
-                parcel.getLeaseHours(), parcel.getDropOffDeadline(), parcel.getPrice(), rules.currency(),
+                station.getName(), compartment.getCode(), parcel.getSize(), parcel.getDropOffDeadline(),
+                parcel.getPrice(), rules.currency(),
                 parcel.getDeliveryCode(), dropOff.pin());
     }
 
@@ -189,9 +179,10 @@ public class ParcelService {
     public TrackingView collect(String deliveryCode, String locationLabel) {
         Parcel parcel = parcels.findByDeliveryCode(deliveryCode == null ? "" : deliveryCode.trim())
                 .orElseThrow(() -> OrbitException.notFound("DELIVERY_CODE_NOT_FOUND", "Unknown delivery code"));
-        if (!clock.instant().isBefore(parcel.getDropOffDeadline()) && parcel.getState() == ParcelState.CREATED) {
-            throw OrbitException.conflict("DROP_OFF_DEADLINE_PASSED",
-                    "The lease ended at " + parcel.getDropOffDeadline() + "; the reservation is being cancelled");
+        if (!DropOffWindow.isOpen(parcel.getDropOffDeadline(), clock.instant())
+                && parcel.getState() == ParcelState.CREATED) {
+            throw OrbitException.conflict("DROP_OFF_DEADLINE_PASSED", "The drop-off window ended at "
+                    + parcel.getDropOffDeadline() + "; the reservation is being cancelled");
         }
         transitions.apply(parcel, ParcelEvent.COLLECT, Actor.COURIER, "Collected by courier");
         parcel.addLocation(locationLabel == null || locationLabel.isBlank() ? "Collected from sender" : locationLabel,

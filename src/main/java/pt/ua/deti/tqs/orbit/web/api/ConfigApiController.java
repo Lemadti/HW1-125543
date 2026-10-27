@@ -26,13 +26,13 @@ public class ConfigApiController {
     /**
      * {@code GET /api/v1/config}: public business parameters for the pages.
      *
-     * @return lease options, price, currency, pickup window, radius options and assistance phone
+     * @return drop-off window, price, currency, pickup window, radius options and assistance phone
      */
     @GetMapping("/api/v1/config")
-    @Operation(summary = "Public business parameters (lease options, prices, search radius options)")
+    @Operation(summary = "Public business parameters (drop-off window, price, search radius options)")
     public PublicConfig config() {
         var rules = properties.rules();
-        return new PublicConfig(rules.leaseHoursOptions(), rules.defaultLeaseHours(), rules.pricePerDay(),
+        return new PublicConfig(rules.dropOffWorkingDays(), rules.price(),
                 rules.currency(), rules.pickupWindow().toDays(), properties.search().radiusOptionsKm(),
                 properties.search().maxRadiusKm(),
                 properties.assistancePhone(), properties.demo().enabled());

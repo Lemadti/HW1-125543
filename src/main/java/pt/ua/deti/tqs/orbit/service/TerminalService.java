@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pt.ua.deti.tqs.orbit.config.OrbitProperties;
 import pt.ua.deti.tqs.orbit.domain.Actor;
 import pt.ua.deti.tqs.orbit.domain.Compartment;
+import pt.ua.deti.tqs.orbit.domain.DropOffWindow;
 import pt.ua.deti.tqs.orbit.domain.IncidentType;
 import pt.ua.deti.tqs.orbit.domain.OrbitException;
 import pt.ua.deti.tqs.orbit.domain.Parcel;
@@ -106,12 +107,15 @@ public class TerminalService {
     // ------------------------------------------------------------------ drop-off (courier)
 
     /**
-     * Step 1 of UC3: the courier enters the drop-off PIN printed on the label and the reserved door opens.
+     * Step 1 of UC3: the courier enters the drop-off PIN printed on the label and the reserved door opens. The PIN
+     * is valid until the parcel's drop-off deadline (inclusive); afterwards the drop-off is refused and the parcel is
+     * cancelled right away (if the deadline job has not done it yet).
      *
      * @param stationCode station of the terminal
      * @param pin         the PIN typed
      * @return DOOR_OPENED (with a session token) or DOOR_DID_NOT_OPEN (compartment put out of service)
-     * @throws OrbitException INVALID_CODE, TOO_MANY_ATTEMPTS, STATION_NOT_FOUND or HARDWARE_UNAVAILABLE
+     * @throws OrbitException INVALID_CODE, TOO_MANY_ATTEMPTS, DROP_OFF_DEADLINE_PASSED, STATION_NOT_FOUND or
+     *         HARDWARE_UNAVAILABLE
      * @throws InvalidTransitionException if the parcel was not collected yet
      */
     @Transactional(noRollbackFor = OrbitException.class)
@@ -128,6 +132,13 @@ public class TerminalService {
         if (ParcelStateMachine.target(parcel.getState(), ParcelEvent.DEPOSIT).isEmpty()) {
             throw new InvalidTransitionException(parcel.getState(), ParcelEvent.DEPOSIT, Actor.COURIER,
                     "The parcel must be collected (QR code scanned) before it can be dropped off");
+        }
+        if (!DropOffWindow.isOpen(parcel.getDropOffDeadline(), clock.instant())) {
+            DeadlineService.cancelForMissedDropOff(parcel, transitions, notifier);
+            throw new OrbitException(OrbitException.Kind.CONFLICT, "DROP_OFF_DEADLINE_PASSED",
+                    "The drop-off window for this parcel ended at " + parcel.getDropOffDeadline()
+                            + ". The reservation was cancelled; please return the parcel to the sender.",
+                    Map.of("dropOffDeadline", parcel.getDropOffDeadline().toString()));
         }
         return openForDropOff(parcel);
     }

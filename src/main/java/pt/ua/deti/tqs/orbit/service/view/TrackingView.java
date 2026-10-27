@@ -20,9 +20,7 @@ import pt.ua.deti.tqs.orbit.domain.ParcelState;
  * @param size             parcel size
  * @param recipientName    recipient name with the last name as an initial
  * @param createdAt        registration time
- * @param leaseStart       start of the lease
- * @param leaseHours       lease duration
- * @param dropOffDeadline  end of the lease
+ * @param dropOffDeadline  end of the drop-off window
  * @param depositedAt      drop-off time, or null
  * @param pickupDeadline   end of the pickup window, or null
  * @param lastLocation     last courier scan, or null
@@ -33,7 +31,7 @@ import pt.ua.deti.tqs.orbit.domain.ParcelState;
 public record TrackingView(String trackingCode, ParcelState state, String stationCode, String stationName,
                             String stationAddress, double stationLatitude, double stationLongitude,
                             String compartmentCode, CompartmentSize size, String recipientName,
-                            Instant createdAt, Instant leaseStart, int leaseHours, Instant dropOffDeadline,
+                            Instant createdAt, Instant dropOffDeadline,
                             Instant depositedAt, Instant pickupDeadline, LocationView lastLocation,
                             List<LocationView> locations, List<TransitionView> history,
                             List<ParcelEvent> allowedEvents) {

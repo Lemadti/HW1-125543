@@ -2,6 +2,7 @@ package pt.ua.deti.tqs.orbit.config;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -9,7 +10,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 /**
  * All configurable business rules (see application.yml, prefix {@code orbit}).
  *
- * @param rules           allocation, lease, price and deadline rules
+ * @param rules           allocation, price and deadline rules
  * @param codes           drop-off / pickup PIN rules
  * @param search          station search (UC1)
  * @param geocoding       geocoding provider settings
@@ -28,24 +29,31 @@ public record OrbitProperties(
         @DefaultValue("+351 234 100 200") String assistancePhone) {
 
     /**
-     * Allocation, lease and deadline rules.
+     * Allocation, price and deadline rules.
      *
-     * @param leaseHoursOptions      allowed lease durations in hours (the lease end is the drop-off deadline)
-     * @param defaultLeaseHours      lease duration used when the request omits it
-     * @param pricePerDay            price per started day of lease, VAT included
+     * @param dropOffWorkingDays     working days allowed for the drop-off after the allocation (the drop-off deadline)
+     * @param price                  price of a reservation, the same for every parcel, VAT included
      * @param currency               currency code
+     * @param timeZone               time zone of the stations, used to count working days
      * @param pickupWindow           time allowed for pickup after drop-off
-     * @param maxLeaseStartAhead     how far in the future a lease may start
      * @param terminalSessionTimeout time to close the door after it opened
      */
     public record Rules(
-            @DefaultValue({"24", "48", "72"}) List<Integer> leaseHoursOptions,
-            @DefaultValue("48") int defaultLeaseHours,
-            @DefaultValue("3.00") BigDecimal pricePerDay,
+            @DefaultValue("10") int dropOffWorkingDays,
+            @DefaultValue("3.00") BigDecimal price,
             @DefaultValue("EUR") String currency,
+            @DefaultValue("Europe/Lisbon") String timeZone,
             @DefaultValue("15d") Duration pickupWindow,
-            @DefaultValue("7d") Duration maxLeaseStartAhead,
             @DefaultValue("5m") Duration terminalSessionTimeout) {
+
+        /**
+         * The time zone as a {@link ZoneId}.
+         *
+         * @return the zone
+         */
+        public ZoneId zone() {
+            return ZoneId.of(timeZone);
+        }
     }
 
     /**

@@ -1,4 +1,4 @@
-/* Register step 3: lease + contacts -> POST /api/v1/parcels (UC2), then the label (tracking code, QR, drop-off PIN). */
+/* Register step 3: contacts -> POST /api/v1/parcels (UC2), then the label (tracking code, QR, drop-off PIN). */
 (function () {
   'use strict';
   const O = window.Orbit;
@@ -6,8 +6,7 @@
   const stationCode = main.dataset.station;
   const compartmentCode = main.dataset.compartment;
   const size = (main.dataset.size || 'M').toUpperCase();
-  let cfg = { leaseHoursOptions: [24, 48, 72], defaultLeaseHours: 48, pricePerDay: 3, currency: 'EUR' };
-  let hours = 48;
+  let cfg = { dropOffWorkingDays: 10, price: 3, currency: 'EUR', pickupWindowDays: 15 };
   let station = null;
 
   const $ = id => document.getElementById(id);
@@ -15,33 +14,16 @@
   const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const PHONE = /^\+?[0-9 ()-]{7,20}$/;
 
-  // Default lease start: now, rounded up to the next 10 minutes, as a Lisbon local time.
-  function lisbonLocal(date) {
-    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: O.TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-      .formatToParts(date).reduce((a, p) => (a[p.type] = p.value, a), {});
-    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
-  }
-  // Convert a Lisbon wall-clock "YYYY-MM-DDTHH:mm" to an Instant (handles DST by probing the offset).
-  function lisbonToInstant(local) {
-    if (!local) return null;
-    const guess = new Date(local + ':00Z');
-    const asLisbon = new Date(lisbonLocal(guess) + ':00Z');
-    return new Date(guess.getTime() - (asLisbon.getTime() - guess.getTime()));
-  }
-  const start = new Date(Math.ceil(Date.now() / 600000) * 600000);
-  $('lease-start').value = lisbonLocal(start);
-
-  function leaseEnd() {
-    const s = lisbonToInstant($('lease-start').value);
-    return s ? new Date(s.getTime() + hours * 3600000) : null;
-  }
-
-  function renderDurations() {
-    $('durations').innerHTML = cfg.leaseHoursOptions.map(h =>
-      `<button type="button" role="radio" aria-checked="${h === hours}" data-hours="${h}" data-testid="duration-${h}">${h} hours</button>`).join('');
-    $('durations').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-      hours = Number(b.dataset.hours); renderDurations(); update();
-    }));
+  // Preview of the drop-off deadline: N working days (Mon-Fri) from now, same time of day. The server computes the
+  // authoritative value at registration (in Lisbon time); this preview uses the browser's calendar.
+  function dropOffDeadline() {
+    const d = new Date();
+    let counted = 0;
+    while (counted < cfg.dropOffWorkingDays) {
+      d.setDate(d.getDate() + 1);
+      if (d.getDay() !== 0 && d.getDay() !== 6) counted++;
+    }
+    return d;
   }
 
   const touched = new Set();
@@ -62,18 +44,16 @@
         if (show) $(f).setAttribute('aria-invalid', 'true'); else $(f).removeAttribute('aria-invalid');
       });
     }
-    return Object.keys(errors).length === 0 && $('terms').checked && !!$('lease-start').value;
+    return Object.keys(errors).length === 0 && $('terms').checked;
   }
 
   function update() {
-    const end = leaseEnd();
-    const days = Math.ceil(hours / 24);
-    const total = (days * Number(cfg.pricePerDay)).toFixed(2);
-    $('sum-duration').textContent = `${hours} hours`;
-    $('sum-expires').textContent = end ? O.fmtDateTime(end.toISOString()) : '–';
-    $('lease-info').innerHTML = `${O.icon('clock')}<span>${hours}-hour lease · The courier must drop off the parcel by ${end ? O.fmtDateTime(end.toISOString()) : '–'} (Lisbon time). The recipient then has ${cfg.pickupWindowDays || 15} days to collect it.</span>`;
-    $('price-line').textContent = `${days} day${days > 1 ? 's' : ''} × ${Number(cfg.pricePerDay).toFixed(2)} ${cfg.currency} · VAT included`;
-    $('price').textContent = `${total} ${cfg.currency}`;
+    const end = dropOffDeadline().toISOString();
+    $('sum-duration').textContent = `${cfg.dropOffWorkingDays} working days`;
+    $('sum-expires').textContent = O.fmtDateTime(end);
+    $('lease-info').innerHTML = `${O.icon('clock')}<span>The courier has ${cfg.dropOffWorkingDays} working days from now to drop off the parcel (until about ${O.fmtDateTime(end)}, Lisbon time). The recipient then has ${cfg.pickupWindowDays || 15} days to collect it.</span>`;
+    $('price-line').textContent = 'Flat price · VAT included';
+    $('price').textContent = `${Number(cfg.price).toFixed(2)} ${cfg.currency}`;
     const ok = validate(false);
     $('submit').disabled = !ok;
     $('complete-hint').textContent = ok ? 'All required details are complete.' : 'Add recipient details and accept the terms to continue.';
@@ -140,8 +120,6 @@
     const v = id => $(id).value.trim();
     const body = {
       stationCode, size, compartmentCode,
-      leaseStart: lisbonToInstant(v('lease-start')).toISOString(),
-      leaseHours: hours,
       sender: { name: v('s-name'), email: v('s-email'), phone: v('s-phone') },
       recipient: { name: v('r-name'), email: v('r-email'), phone: v('r-phone') }
     };
@@ -155,8 +133,8 @@
   });
 
   O.api('GET', '/api/v1/config').then(r => {
-    if (r.ok) { cfg = r.data; hours = cfg.defaultLeaseHours; }
-    renderDurations(); update();
+    if (r.ok) cfg = r.data;
+    update();
   });
   loadStation();
 })();

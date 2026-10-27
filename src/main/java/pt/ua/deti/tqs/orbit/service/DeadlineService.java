@@ -20,7 +20,8 @@ import pt.ua.deti.tqs.orbit.repository.ParcelRepository;
 /**
  * Time-based rules, evaluated against the injected {@link Clock} (tests move the clock instead of sleeping):
  * <ul>
- *   <li>CREATED and lease ended (drop-off deadline) -> CANCELLED (system);</li>
+ *   <li>CREATED or ON_ITS_WAY and drop-off deadline passed -> CANCELLED (system); a parcel whose door is open at
+ *       the terminal right now is left for the next run, so a drop-off in progress can finish;</li>
  *   <li>READY_FOR_PICKUP and pickup window ended -> EXPIRED (system).</li>
  * </ul>
  * Each parcel is processed in its own transaction so that one failure does not block the others.
@@ -33,11 +34,14 @@ public class DeadlineService {
     /**
      * Result of one deadline check.
      *
-     * @param cancelled parcels cancelled because the lease ended
+     * @param cancelled parcels cancelled because the drop-off deadline passed
      * @param expired   parcels expired because the pickup window ended
      */
     public record Report(int cancelled, int expired) {
     }
+
+    /** States of a parcel that has not been dropped off yet. */
+    static final List<ParcelState> NOT_DROPPED_OFF = List.of(ParcelState.CREATED, ParcelState.ON_ITS_WAY);
 
     private final ParcelRepository parcels;
     private final TransitionRecorder transitions;
@@ -74,14 +78,14 @@ public class DeadlineService {
     }
 
     /**
-     * Cancels CREATED parcels whose lease ended and expires READY_FOR_PICKUP parcels whose pickup window ended.
+     * Cancels parcels not dropped off (CREATED or ON_ITS_WAY) whose drop-off deadline passed and expires READY_FOR_PICKUP parcels whose pickup window ended.
      *
      * @return how many parcels were cancelled and expired
      */
     public Report processDeadlines() {
         Instant now = clock.instant();
         List<Long> toCancel = ids(tx.execute(s ->
-                parcels.findByStateAndDropOffDeadlineLessThanEqual(ParcelState.CREATED, now)));
+                parcels.findByStateInAndDropOffDeadlineBefore(NOT_DROPPED_OFF, now)));
         List<Long> toExpire = ids(tx.execute(s ->
                 parcels.findByStateAndPickupDeadlineLessThanEqual(ParcelState.READY_FOR_PICKUP, now)));
         int cancelled = 0;
@@ -101,16 +105,30 @@ public class DeadlineService {
 
     private boolean cancelOne(Long id) {
         Parcel p = parcels.findById(id).orElse(null);
-        if (p == null || p.getState() != ParcelState.CREATED) {
+        if (p == null || !NOT_DROPPED_OFF.contains(p.getState()) || p.hasOpenTerminalSession(clock.instant())) {
             return false;
         }
-        transitions.apply(p, ParcelEvent.DROP_OFF_DEADLINE_PASSED, Actor.SYSTEM,
-                "Lease ended at " + p.getDropOffDeadline() + " before drop-off");
+        cancelForMissedDropOff(p, transitions, notifier);
+        return true;
+    }
+
+    /**
+     * Cancels a parcel whose drop-off deadline passed (CREATED or ON_ITS_WAY to CANCELLED, by the system), which
+     * releases its compartment, and tells the sender. A collected parcel goes back to the sender with the courier.
+     *
+     * @param p           the parcel
+     * @param transitions records the transition
+     * @param notifier    informs the sender
+     */
+    static void cancelForMissedDropOff(Parcel p, TransitionRecorder transitions, NotifierPort notifier) {
+        boolean collected = p.getState() == ParcelState.ON_ITS_WAY;
+        transitions.apply(p, ParcelEvent.DROP_OFF_DEADLINE_PASSED, Actor.SYSTEM, "Drop-off deadline "
+                + p.getDropOffDeadline() + " passed before " + (collected ? "drop-off" : "collection"));
         notifier.send(new Notification(Notification.Type.PARCEL_CANCELLED, p.getTrackingCode(),
                 p.getSender().getName(), p.getSender().getEmail(), p.getSender().getPhone(),
                 "Reservation " + p.getTrackingCode() + " cancelled",
-                "The parcel was not collected before the end of the lease; the compartment was released."));
-        return true;
+                "The parcel was not dropped off before the drop-off deadline; the compartment was released."
+                        + (collected ? " The courier will return the parcel to you." : "")));
     }
 
     private boolean expireOne(Long id) {

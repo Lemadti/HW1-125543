@@ -1,24 +1,28 @@
-Feature: Pick up at the locker terminal (UC4)
-  As a recipient, I want to enter the pickup code and open my compartment,
-  so that I can collect my parcel without the risk of it being stolen.
+Feature: Pick up at the locker terminal (US4)
+  As a recipient, I want to enter the pick up code and open my compartment,
+  so that I can pick my packet up without the risk of it being stolen.
 
   Background:
-    Given a "S" parcel waiting for pickup at station "ORB-AVR-001"
+    Given a "S" parcel is waiting for pickup at station "ORB-AVR-001" in compartment "S-01"
 
   Scenario: Valid pickup code
     When the recipient enters the pickup code at the terminal
-    Then the compartment opens
-    And the parcel is "PICKED_UP"
-    And the compartment is free again
+    Then the terminal should show "Compartment S-01 is open"
+    When the recipient closes the door
+    Then the terminal should show "Enjoy your parcel!"
+    And the parcel should be stored as "PICKED_UP"
+    And compartment "S-01" should be free again
 
   Scenario: The pickup code can only be used once
     Given the recipient already picked up the parcel
     When the recipient enters the pickup code at the terminal
-    Then the request is rejected with status 422 and code "INVALID_CODE"
+    Then I should see a message saying "This code is not valid at this station. 2 attempt(s) left."
 
   Scenario: Code entry is blocked after three wrong codes
     When someone enters 3 wrong pickup codes at the terminal
-    Then the terminal blocks code entry with status 429
-    And even the correct pickup code is rejected
+    Then the terminal should show "Code entry blocked"
+    When the recipient enters the pickup code at the terminal
+    Then the terminal should show "Code entry blocked"
     When 1 hour passes
-    Then the recipient can pick up the parcel with the pickup code
+    And the recipient enters the pickup code at the terminal
+    Then the terminal should show "Compartment S-01 is open"

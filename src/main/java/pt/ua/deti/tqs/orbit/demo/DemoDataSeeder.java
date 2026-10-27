@@ -61,18 +61,18 @@ public class DemoDataSeeder implements ApplicationRunner {
         Contact maria = new Contact("Maria Costa", "maria.costa@example.com", "+351 961 111 222");
 
         RegistrationResult onItsWay = parcelService.register(
-                new RegisterParcelCommand(FORUM, CompartmentSize.M, "M-07", null, 48, ana, joao));
+                new RegisterParcelCommand(FORUM, CompartmentSize.M, "M-07", ana, joao));
         parcelService.collect(onItsWay.deliveryCode(), "Aveiro sorting hub · Taboeira");
         parcelService.addLocation(onItsWay.trackingCode(), "Aveiro depot · Esgueira", 40.6530, -8.6310);
 
         RegistrationResult ready = parcelService.register(
-                new RegisterParcelCommand(FORUM, CompartmentSize.S, null, null, 24, ana, maria));
+                new RegisterParcelCommand(FORUM, CompartmentSize.S, null, ana, maria));
         parcelService.collect(ready.deliveryCode(), "Aveiro sorting hub · Taboeira");
         TerminalResult opened = terminal.startDropOff(FORUM, ready.dropOffCode());
         terminal.confirmDropOff(FORUM, opened.sessionToken());
 
         RegistrationResult created = parcelService.register(
-                new RegisterParcelCommand(STATION, CompartmentSize.L, null, null, 72, maria, joao));
+                new RegisterParcelCommand(STATION, CompartmentSize.L, null, maria, joao));
 
         log.info("Demo parcels: ON_ITS_WAY {} | READY_FOR_PICKUP {} (pickup code in demo inbox) | CREATED {} "
                         + "(delivery code {}, drop-off PIN {})", onItsWay.trackingCode(), ready.trackingCode(),

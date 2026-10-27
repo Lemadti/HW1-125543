@@ -1,76 +1,120 @@
 package pt.ua.deti.tqs.orbit.bdd;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
-import io.cucumber.datatable.DataTable;
+import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.BrowserContext;
+import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.assertions.PlaywrightAssertions;
+import com.microsoft.playwright.options.AriaRole;
+import com.microsoft.playwright.options.WaitUntilState;
 import io.cucumber.java.After;
+import io.cucumber.java.AfterAll;
 import io.cucumber.java.Before;
+import io.cucumber.java.BeforeAll;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
-import java.io.UnsupportedEncodingException;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.assertj.core.api.Assertions;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.web.servlet.assertj.MockMvcTester;
-import org.springframework.test.web.servlet.assertj.MvcTestResult;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 import pt.ua.deti.tqs.orbit.adapter.geocoding.StubGeocoder;
 import pt.ua.deti.tqs.orbit.adapter.hardware.FakeLockerHardware;
 import pt.ua.deti.tqs.orbit.adapter.notification.NotificationOutbox;
 import pt.ua.deti.tqs.orbit.config.MutableClock;
+import pt.ua.deti.tqs.orbit.domain.CompartmentSize;
 import pt.ua.deti.tqs.orbit.port.CompartmentRef;
 import pt.ua.deti.tqs.orbit.port.GeocoderPort;
 import pt.ua.deti.tqs.orbit.port.Notification;
+import pt.ua.deti.tqs.orbit.repository.ParcelRepository;
 import pt.ua.deti.tqs.orbit.service.AttemptGuard;
 import pt.ua.deti.tqs.orbit.service.DeadlineService;
+import pt.ua.deti.tqs.orbit.service.ParcelService;
+import pt.ua.deti.tqs.orbit.service.RegisterParcelCommand;
+import pt.ua.deti.tqs.orbit.service.TerminalService;
+import pt.ua.deti.tqs.orbit.service.view.RegistrationResult;
 import pt.ua.deti.tqs.orbit.support.AbstractIntegrationTest;
+import pt.ua.deti.tqs.orbit.support.TestData;
 
 /**
- * Step definitions drive the public REST API (the system boundary every actor uses), on the full application with
- * a real database. Time and hardware are controlled through the injected fakes (MutableClock, FakeLockerHardware),
- * so time-based and hardware-failure scenarios are deterministic.
+ * Step definitions for the acceptance tests (features in {@code src/test/resources/features}): the whole application
+ * on a random port, a real PostgreSQL, and a real browser.
+ *
+ * <p>Front door / back door (as in Labs 05/06): what the user does and sees goes through the <strong>browser</strong>
+ * ({@code page}), with the locators a user would use (labels, roles, visible text). Arranging data ("a parcel waiting
+ * for pickup") goes through the <strong>back door</strong> — the services, because the PINs exist in clear only when
+ * they are generated — and checking what was stored ("the parcel should be stored as …") goes through the
+ * repositories. Time and hardware are controlled through the injected fakes ({@link MutableClock},
+ * {@link FakeLockerHardware}), so time-based and hardware-failure scenarios are deterministic.</p>
  */
 public class ParcelSteps {
 
+    /** Set to false (and SLOW_MO to e.g. 500) to watch the scenarios run. */
+    private static final boolean HEADLESS = true;
+    private static final double SLOW_MO = 0;
     private static final Pattern CODE = Pattern.compile("[Cc]ode: (\\d{6})");
 
-    @Autowired
-    MockMvcTester mvc;
-    @Autowired
-    JdbcTemplate jdbc;
-    @Autowired
-    MutableClock clock;
-    @Autowired
-    FakeLockerHardware hardware;
-    @Autowired
-    NotificationOutbox outbox;
-    @Autowired
-    AttemptGuard guard;
-    @Autowired
-    GeocoderPort geocoder;
-    @Autowired
-    DeadlineService deadlines;
+    // One browser for the whole run (static); a new context and page for every scenario.
+    private static Playwright playwright;
+    private static Browser browser;
+    private BrowserContext context;
+    private Page page;
 
-    private final JsonMapper json = JsonMapper.builder().build();
-    private MvcTestResult last;
-    private JsonNode registration;
+    // Cucumber-Spring creates this class as a Spring bean for every scenario: injection works here.
+    @LocalServerPort
+    private int port;
+    @Autowired
+    private ParcelService parcelService;
+    @Autowired
+    private TerminalService terminalService;
+    @Autowired
+    private DeadlineService deadlines;
+    @Autowired
+    private ParcelRepository parcels;
+    @Autowired
+    private JdbcTemplate jdbc;
+    @Autowired
+    private MutableClock clock;
+    @Autowired
+    private FakeLockerHardware hardware;
+    @Autowired
+    private NotificationOutbox outbox;
+    @Autowired
+    private AttemptGuard guard;
+    @Autowired
+    private GeocoderPort geocoder;
+
     private String station = AbstractIntegrationTest.FORUM;
+    private RegistrationResult registration;
+    private RegistrationResult newRegistration;
     private String pickupCode;
-    private String sessionToken;
-    private String expiredTrackingCode;
-    private JsonNode newRegistration;
-    private long freeBefore;
 
+    // ------------------------------------------------------------------ hooks
+
+    @BeforeAll // io.cucumber.java.BeforeAll - not JUnit's
+    public static void launchBrowser() {
+        playwright = Playwright.create();
+        browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(HEADLESS).setSlowMo(SLOW_MO));
+        PlaywrightAssertions.setDefaultAssertionTimeout(7000);
+    }
+
+    @AfterAll
+    public static void closeBrowser() {
+        playwright.close(); // also closes the browser
+    }
+
+    /** Every scenario starts from the seed data, with the clock at a fixed instant, no faults and a fresh context. */
     @Before
-    public void resetWorld() {
+    public void startScenario() {
         AbstractIntegrationTest.resetDatabase(jdbc);
         clock.setFixed(AbstractIntegrationTest.NOW);
         hardware.reset();
@@ -78,40 +122,48 @@ public class ParcelSteps {
         outbox.clear();
         guard.resetAll();
         ((StubGeocoder) geocoder).setUnavailable(false);
+
+        context = browser.newContext(new Browser.NewContextOptions().setLocale("en-GB"));
+        // hermetic: map tiles, CDN and fonts are never fetched
+        context.route("**/*", route -> {
+            if (route.request().url().startsWith(url(""))) {
+                route.resume();
+            } else {
+                route.abort();
+            }
+        });
+        page = context.newPage();
     }
 
     @After
-    public void restoreClock() {
+    public void endScenario() {
+        context.close();
         clock.useSystemTime();
     }
 
-    // ------------------------------------------------------------------ helpers
-
-    private JsonNode body() {
-        try {
-            return json.readTree(last.getResponse().getContentAsString());
-        } catch (UnsupportedEncodingException e) {
-            throw new IllegalStateException(e);
-        }
+    private String url(String path) {
+        return "http://localhost:" + port + path;
     }
 
-    private MvcTestResult post(String uri, String body) {
-        last = mvc.post().uri(uri).contentType(MediaType.APPLICATION_JSON).content(body == null ? "" : body).exchange();
-        return last;
+    private void open(String path) {
+        page.navigate(url(path), new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
     }
 
-    private MvcTestResult get(String uri) {
-        last = mvc.get().uri(uri).exchange();
-        return last;
+    /** The code field, by its accessible name (the kiosk's main region is named after the same heading text). */
+    private Locator pinField(String name) {
+        return page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName(name));
     }
 
-    private String trackingCode() {
-        return registration.get("trackingCode").asString();
+    private Locator button(String name) {
+        return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(name));
     }
 
-    private JsonNode register(String size, String station, String compartment, int hours) {
-        post("/api/v1/parcels", AbstractIntegrationTest.registerBody(station, size, compartment, hours));
-        return body();
+    private Locator exactButton(String name) {
+        return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(name).setExact(true));
+    }
+
+    private Locator stationCards() {
+        return page.getByTestId("results").locator("[data-testid=station-card]");
     }
 
     private String latestCode(String trackingCode, Notification.Type type) {
@@ -121,330 +173,85 @@ public class ParcelSteps {
                 .filter(Matcher::find).map(m -> m.group(1)).findFirst().orElseThrow();
     }
 
-    private String stateOf(String trackingCode) {
-        get("/api/v1/parcels/" + trackingCode);
-        return body().get("state").asString();
+    private RegistrationResult registerInBackDoor(String size, String station, String compartment) {
+        return parcelService.register(new RegisterParcelCommand(station, CompartmentSize.valueOf(size), compartment,
+                TestData.SENDER, TestData.RECIPIENT));
     }
 
-    private long freeOf(String size) {
-        get("/api/v1/stations/" + station);
-        return body().get("station").get("free").get(size.toLowerCase()).asLong();
+    private void dropOffInBackDoor(RegistrationResult reg) {
+        String token = terminalService.startDropOff(station, reg.dropOffCode()).sessionToken();
+        terminalService.confirmDropOff(station, token);
     }
 
-    private void collect(JsonNode reg) {
-        post("/api/v1/courier/collections", "{\"deliveryCode\":\"" + reg.get("deliveryCode").asString() + "\"}");
+    private long activeParcelsIn(String compartment) {
+        return jdbc.queryForObject("""
+                SELECT count(*) FROM parcel p JOIN compartment c ON c.id = p.compartment_id JOIN station s ON s.id = c.station_id
+                WHERE s.code = ? AND c.code = ? AND p.state IN ('CREATED','ON_ITS_WAY','READY_FOR_PICKUP')""",
+                Long.class, station, compartment);
     }
 
-    private void dropOff(JsonNode reg) {
-        post("/api/v1/terminals/" + station + "/drop-offs", "{\"code\":\"" + reg.get("dropOffCode").asString() + "\"}");
-        String token = body().get("sessionToken").asString();
-        post("/api/v1/terminals/" + station + "/drop-offs/" + token + "/door-closed", null);
-    }
-
-    // ------------------------------------------------------------------ UC1
+    // ------------------------------------------------------------------ Given (back door)
 
     @Given("the geocoding provider is unavailable")
-    public void geocoderUnavailable() {
+    public void theGeocodingProviderIsUnavailable() {
         ((StubGeocoder) geocoder).setUnavailable(true);
     }
 
-    @When("I search for stations near {string}")
-    public void search(String address) {
-        last = mvc.get().uri("/api/v1/stations/nearby").param("address", address).exchange();
-    }
-
-    @When("I search for stations within {int} km of {string}")
-    public void searchWithin(int km, String address) {
-        last = mvc.get().uri("/api/v1/stations/nearby").param("address", address).param("radiusKm", String.valueOf(km))
-                .exchange();
-    }
-
-    @Then("{int} stations are listed")
-    public void stationsListed(int n) {
-        assertThat(body().get("stations").size()).isEqualTo(n);
-    }
-
-    @Then("station {string} is not listed")
-    public void notListed(String name) {
-        body().get("stations").forEach(s -> assertThat(s.get("name").asString()).isNotEqualTo(name));
-    }
-
-    @Then("the first station listed is {string}")
-    public void firstStation(String name) {
-        assertThat(last.getResponse().getStatus()).isEqualTo(200);
-        assertThat(body().get("stations").get(0).get("name").asString()).isEqualTo(name);
-    }
-
-    @Then("the stations are sorted by distance")
-    public void sortedByDistance() {
-        List<Double> d = new ArrayList<>();
-        body().get("stations").forEach(s -> d.add(s.get("distanceKm").asDouble()));
-        assertThat(d).isSorted().isNotEmpty();
-    }
-
-    @Then("every listed station shows its free compartments per size")
-    public void freePerSize() {
-        body().get("stations").forEach(s -> assertThat(s.get("free").has("s") && s.get("free").has("m") && s.get("free").has("l")).isTrue());
-    }
-
-    @When("I open the station {string}")
-    public void openStation(String code) {
-        get("/api/v1/stations/" + code);
-    }
-
-    @Then("I see {int} compartments")
-    public void seeCompartments(int n) {
-        assertThat(body().get("compartments").size()).isEqualTo(n);
-    }
-
-    @Then("compartment {string} is {string}")
-    public void compartmentIs(String code, String availability) {
-        get("/api/v1/stations/" + station);
-        JsonNode found = null;
-        for (JsonNode c : body().get("compartments")) {
-            if (c.get("code").asString().equals(code)) {
-                found = c;
-            }
-        }
-        assertThat(found).isNotNull();
-        assertThat(found.get("availability").asString()).isEqualTo(availability);
-    }
-
-    @Then("the search fails with status {int} and code {string}")
-    public void searchFails(int status, String code) {
-        rejected(status, code);
-    }
-
-    @Then("the list of all stations is still available")
-    public void allStations() {
-        get("/api/v1/stations");
-        assertThat(body().size()).isEqualTo(5);
-    }
-
-    // ------------------------------------------------------------------ UC2
-
-    @When("the partner registers a {string} parcel at station {string} for {int} hours")
-    public void partnerRegisters(String size, String station, int hours) {
+    @Given("a {string} parcel is registered at station {string} in compartment {string}")
+    public void aParcelIsRegistered(String size, String station, String compartment) {
         this.station = station;
-        registration = register(size, station, null, hours);
+        registration = registerInBackDoor(size, station, compartment);
     }
 
-    @Given("a {string} parcel registered at station {string}")
-    public void parcelRegistered(String size, String station) {
-        parcelRegisteredFor(size, station, 48);
-    }
-
-    @Given("a {string} parcel registered at station {string} for {int} hours")
-    public void parcelRegisteredFor(String size, String station, int hours) {
+    @Given("compartment {string} of station {string} is reserved")
+    public void compartmentIsReserved(String compartment, String station) {
         this.station = station;
-        freeBefore = freeOf(size);
-        registration = register(size, station, null, hours);
-        assertThat(last.getResponse().getStatus()).isEqualTo(201);
+        registerInBackDoor(compartment.substring(0, 1), station, compartment);
     }
 
     @Given("all {string} compartments of station {string} are reserved")
-    public void allReserved(String size, String station) {
-        long free = freeOf(size);
-        for (int i = 0; i < free; i++) {
-            register(size, station, null, 24);
-        }
-        assertThat(freeOf(size)).isZero();
+    public void allCompartmentsAreReserved(String size, String station) {
+        this.station = station;
+        List<String> free = jdbc.queryForList("""
+                SELECT c.code FROM compartment c JOIN station s ON s.id = c.station_id
+                WHERE s.code = ? AND c.size = ? AND c.status = 'IN_SERVICE' ORDER BY c.position""", String.class, station, size);
+        free.forEach(code -> registerInBackDoor(size, station, code));
     }
-
-    @Then("the parcel is {string}")
-    public void parcelIs(String state) {
-        assertThat(stateOf(trackingCode())).isEqualTo(state);
-    }
-
-    @Then("a {string} compartment is reserved for it")
-    public void compartmentReserved(String size) {
-        assertThat(registration.get("compartmentCode").asString()).startsWith(size + "-");
-    }
-
-    @Then("the partner receives a tracking code, a delivery code and a 6-digit drop-off code")
-    public void partnerReceivesCodes() {
-        assertThat(registration.get("trackingCode").asString()).matches("ORB-\\d{6}-\\d{4}");
-        assertThat(registration.get("deliveryCode").asString()).startsWith("DLV-");
-        assertThat(registration.get("dropOffCode").asString()).matches("\\d{6}");
-    }
-
-    @Then("the price is {double} EUR")
-    public void price(double price) {
-        assertThat(registration.get("price").asDouble()).isEqualTo(price);
-        assertThat(registration.get("currency").asString()).isEqualTo("EUR");
-    }
-
-    @Then("the request is rejected with status {int} and code {string}")
-    public void rejected(int status, String code) {
-        assertThat(last.getResponse().getStatus()).isEqualTo(status);
-        assertThat(body().get("code").asString()).isEqualTo(code);
-    }
-
-    // ------------------------------------------------------------------ UC3
 
     @Given("the courier collected the parcel")
-    public void courierCollected() {
-        collect(registration);
-        assertThat(last.getResponse().getStatus()).isEqualTo(200);
+    public void theCourierCollectedTheParcel() {
+        parcelService.collect(registration.deliveryCode(), null);
     }
 
-    @Given("the door of the reserved compartment will not open")
-    public void doorWontOpen() {
-        hardware.inject(new CompartmentRef(station, registration.get("compartmentCode").asString()),
-                FakeLockerHardware.Fault.DOOR_WONT_OPEN);
-    }
-
-    @Given("the station controller is not responding")
-    public void controllerDown() {
-        hardware.setStationUnreachable(true);
-    }
-
-    @When("the courier enters the drop-off code at the terminal")
-    public void enterDropOffCode() {
-        post("/api/v1/terminals/" + station + "/drop-offs", "{\"code\":\"" + registration.get("dropOffCode").asString() + "\"}");
-        if (last.getResponse().getStatus() == 200) {
-            sessionToken = body().get("sessionToken").asString();
-        }
-    }
-
-    @Then("the compartment opens")
-    public void compartmentOpens() {
-        assertThat(last.getResponse().getStatus()).isEqualTo(200);
-        assertThat(body().get("outcome").asString()).isEqualTo("DOOR_OPENED");
-    }
-
-    @When("the courier closes the door")
-    public void courierClosesDoor() {
-        post("/api/v1/terminals/" + station + "/drop-offs/" + sessionToken + "/door-closed", null);
-        assertThat(body().get("outcome").asString()).isEqualTo("DEPOSITED");
-    }
-
-    @Then("the recipient receives a 6-digit pickup code different from the drop-off code")
-    public void recipientGetsPickupCode() {
-        pickupCode = latestCode(trackingCode(), Notification.Type.PICKUP_CODE);
-        assertThat(pickupCode).matches("\\d{6}").isNotEqualTo(registration.get("dropOffCode").asString());
-        assertThat(outbox.latest().get(0).notification().toEmail()).isEqualTo("joao@example.com");
-    }
-
-    @Then("the terminal reports {string} with a replacement available")
-    public void terminalReports(String outcome) {
-        assertThat(body().get("outcome").asString()).isEqualTo(outcome);
-        assertThat(body().get("replacementAvailable").asBoolean()).isTrue();
-    }
-
-    @Then("the faulty compartment is out of service")
-    public void faultyOutOfService() {
-        compartmentIs(registration.get("compartmentCode").asString(), "OUT_OF_SERVICE");
-    }
-
-    @Then("the operator is notified of the malfunction")
-    public void operatorNotified() {
-        get("/api/v1/operator/stations/" + station + "/incidents");
-        assertThat(body().get(0).get("type").asString()).isEqualTo("DOOR_DID_NOT_OPEN");
-        assertThat(outbox.latest()).anySatisfy(e -> assertThat(e.notification().type()).isEqualTo(Notification.Type.OPERATOR_ALERT));
-    }
-
-    @When("the courier asks for another compartment")
-    public void askReplacement() {
-        post("/api/v1/terminals/" + station + "/drop-offs/" + sessionToken + "/replacement", null);
-        assertThat(body().get("outcome").asString()).isEqualTo("REPLACEMENT_ISSUED");
-    }
-
-    @Then("the parcel is moved to another {string} compartment")
-    public void movedTo(String size) {
-        String now = body().get("compartmentCode").asString();
-        assertThat(now).startsWith(size + "-").isNotEqualTo(registration.get("compartmentCode").asString());
-    }
-
-    @Then("the sender receives a new drop-off code that opens the new compartment")
-    public void newCodeOpens() {
-        String code = latestCode(trackingCode(), Notification.Type.REPLACEMENT_DROP_OFF_CODE);
-        post("/api/v1/terminals/" + station + "/drop-offs", "{\"code\":\"" + code + "\"}");
-        assertThat(body().get("outcome").asString()).isEqualTo("DOOR_OPENED");
-    }
-
-    // ------------------------------------------------------------------ UC4
-
-    @Given("a {string} parcel waiting for pickup at station {string}")
-    public void parcelWaiting(String size, String station) {
-        parcelRegistered(size, station);
-        collect(registration);
-        dropOff(registration);
-        pickupCode = latestCode(trackingCode(), Notification.Type.PICKUP_CODE);
-    }
-
-    @When("the recipient enters the pickup code at the terminal")
-    public void enterPickupCode() {
-        post("/api/v1/terminals/" + station + "/pickups", "{\"code\":\"" + pickupCode + "\"}");
+    @Given("a {string} parcel is waiting for pickup at station {string} in compartment {string}")
+    public void aParcelIsWaitingForPickup(String size, String station, String compartment) {
+        aParcelIsRegistered(size, station, compartment);
+        theCourierCollectedTheParcel();
+        dropOffInBackDoor(registration);
+        pickupCode = latestCode(registration.trackingCode(), Notification.Type.PICKUP_CODE);
     }
 
     @Given("the recipient already picked up the parcel")
-    public void alreadyPickedUp() {
-        enterPickupCode();
-        assertThat(body().get("state").asString()).isEqualTo("PICKED_UP");
+    public void theRecipientAlreadyPickedUpTheParcel() {
+        String token = terminalService.startPickup(station, pickupCode).sessionToken();
+        terminalService.confirmPickup(station, token);
     }
 
-    @Then("the compartment is free again")
-    public void compartmentFreeAgain() {
-        assertThat(freeOf(registration.get("size").asString())).isEqualTo(freeBefore);
+    @Given("the door of compartment {string} will not open")
+    public void theDoorWillNotOpen(String compartment) {
+        hardware.inject(new CompartmentRef(station, compartment), FakeLockerHardware.Fault.DOOR_WONT_OPEN);
     }
 
-    @When("someone enters {int} wrong pickup codes at the terminal")
-    public void wrongCodes(int n) {
-        for (int i = 0; i < n; i++) {
-            String wrong = String.format("%06d", (Integer.parseInt(pickupCode) + 1 + i) % 1_000_000);
-            post("/api/v1/terminals/" + station + "/pickups", "{\"code\":\"" + wrong + "\"}");
-        }
+    @Given("the locker is not responding")
+    public void theLockerIsNotResponding() {
+        hardware.setStationUnreachable(true);
     }
 
-    @Then("the terminal blocks code entry with status {int}")
-    public void blocked(int status) {
-        assertThat(last.getResponse().getStatus()).isEqualTo(status);
+    @Given("{int} day(s) pass(es)")
+    public void daysPass(int days) {
+        clock.advance(Duration.ofDays(days));
+        deadlines.processDeadlines();
     }
-
-    @Then("even the correct pickup code is rejected")
-    public void correctRejected() {
-        enterPickupCode();
-        assertThat(last.getResponse().getStatus()).isEqualTo(429);
-    }
-
-    @Then("the recipient can pick up the parcel with the pickup code")
-    public void canPickUp() {
-        enterPickupCode();
-        assertThat(last.getResponse().getStatus()).isEqualTo(200);
-        assertThat(body().get("state").asString()).isEqualTo("PICKED_UP");
-    }
-
-    // ------------------------------------------------------------------ UC5
-
-    @When("I track the parcel")
-    public void track() {
-        get("/api/v1/parcels/" + trackingCode());
-    }
-
-    @When("I track the parcel {string}")
-    public void trackCode(String code) {
-        get("/api/v1/parcels/" + code);
-    }
-
-    @Then("the current state is {string}")
-    public void currentState(String state) {
-        assertThat(body().get("state").asString()).isEqualTo(state);
-    }
-
-    @Then("the history is:")
-    public void historyIs(DataTable table) {
-        List<Map<String, String>> expected = table.asMaps();
-        JsonNode history = body().get("history");
-        assertThat(history.size()).isEqualTo(expected.size());
-        for (int i = 0; i < expected.size(); i++) {
-            assertThat(history.get(i).get("to").asString()).isEqualTo(expected.get(i).get("to"));
-            assertThat(history.get(i).get("actor").asString()).isEqualTo(expected.get(i).get("actor"));
-            assertThat(history.get(i).get("at").asString()).isNotBlank();
-        }
-    }
-
-    // ------------------------------------------------------------------ time
 
     @When("{int} hour(s) pass(es)")
     public void hoursPass(int hours) {
@@ -452,71 +259,348 @@ public class ParcelSteps {
         deadlines.processDeadlines();
     }
 
-    @When("{int} day(s) pass(es)")
-    public void daysPass(int days) {
-        clock.advance(Duration.ofDays(days));
+    @When("the drop-off deadline passes")
+    public void theDropOffDeadlinePasses() {
+        clock.setFixed(registration.dropOffDeadline().plusSeconds(1));
         deadlines.processDeadlines();
     }
 
-    @Then("the last transition was made by {string}")
-    public void lastActor(String actor) {
-        get("/api/v1/parcels/" + trackingCode());
-        JsonNode history = body().get("history");
-        assertThat(history.get(history.size() - 1).get("actor").asString()).isEqualTo(actor);
+    @When("another parcel is registered for compartment {string}")
+    public void anotherParcelIsRegistered(String compartment) {
+        newRegistration = registerInBackDoor(compartment.substring(0, 1), station, compartment);
+        parcelService.collect(newRegistration.deliveryCode(), null);
     }
 
-    @When("another parcel is registered for the same compartment")
-    public void anotherForSameCompartment() {
-        expiredTrackingCode = trackingCode();
-        newRegistration = register(registration.get("size").asString(), station,
-                registration.get("compartmentCode").asString(), 24);
-        assertThat(last.getResponse().getStatus()).isEqualTo(201);
+    // ------------------------------------------------------------------ When (front door): US1
+
+    @When("I search for stations near {string}")
+    public void iSearchForStationsNear(String address) {
+        open("/");
+        page.getByLabel("Search near an address").fill(address);
+        exactButton("Search").click();
     }
 
-    @Then("the expired parcel is {string}")
-    public void expiredParcelIs(String state) {
-        assertThat(stateOf(expiredTrackingCode)).isEqualTo(state);
+    @When("I choose a radius of {int} km")
+    public void iChooseARadius(int km) {
+        // the radius re-runs the current search: wait until the search has answered
+        assertThat(page.getByTestId("result-count")).containsText("nearby");
+        page.getByLabel("Radius").selectOption(String.valueOf(km));
     }
 
-    @When("the new parcel is dropped off in that compartment")
-    public void newParcelDroppedOff() {
-        collect(newRegistration);
-        dropOff(newRegistration);
-        assertThat(body().get("outcome").asString()).isEqualTo("DEPOSITED");
+    @When("I select the station {string}")
+    public void iSelectTheStation(String name) {
+        stationCards().filter(new Locator.FilterOptions().setHasText(name)).click();
     }
 
-    // ------------------------------------------------------------------ UC6
+    // ------------------------------------------------------------------ When (front door): US2
 
-    @When("the operator lists the {string} parcels of station {string}")
-    public void operatorLists(String state, String station) {
-        get("/api/v1/operator/stations/" + station + "/parcels?state=" + state);
+    @Given("I am registering a {string} parcel at station {string}")
+    public void iAmRegisteringAParcel(String size, String stationName) {
+        open("/register");
+        page.getByRole(AriaRole.RADIO, new Page.GetByRoleOptions().setName(size)).click();
+        page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName(stationName)).click();
+        assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName(stationName))).isVisible();
     }
 
-    @Then("the parcel is in the list")
-    public void parcelInList() {
-        List<String> codes = new ArrayList<>();
-        body().forEach(p -> codes.add(p.get("trackingCode").asString()));
-        assertThat(codes).contains(trackingCode());
+    @When("I choose compartment {string}")
+    public void iChooseCompartment(String compartment) {
+        button(compartment + ",").click();
+    }
+
+    @When("I fill in the sender and recipient contacts and accept the terms")
+    public void iFillInTheContacts() {
+        page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Register").setExact(true)).click();
+        Locator sender = page.getByRole(AriaRole.GROUP, new Page.GetByRoleOptions().setName("Sender contact"));
+        Locator recipient = page.getByRole(AriaRole.GROUP, new Page.GetByRoleOptions().setName("Recipient contact"));
+        sender.getByLabel("Full name").fill("Ana Silva");
+        sender.getByLabel("Email address").fill("ana.silva@example.com");
+        sender.getByLabel("Phone number").fill("+351 912 345 678");
+        recipient.getByLabel("Full name").fill("João Santos");
+        recipient.getByLabel("Email address").fill("joao.santos@example.com");
+        recipient.getByLabel("Phone number").fill("+351 934 567 890");
+        page.getByLabel("I agree to the locker reservation terms").check();
+    }
+
+    @When("I submit the registration")
+    public void iSubmitTheRegistration() {
+        button("Submit registration").click();
+    }
+
+    @When("I look for a {string} compartment near {string}")
+    public void iLookForACompartmentNear(String size, String address) {
+        open("/register");
+        page.getByRole(AriaRole.RADIO, new Page.GetByRoleOptions().setName(size)).click();
+        page.getByLabel("Where do you need a locker?").fill(address);
+        exactButton("Search").click();
+    }
+
+    // ------------------------------------------------------------------ When (front door): courier and terminal
+
+    @When("the courier confirms the collection of the parcel on the courier page")
+    public void theCourierConfirmsTheCollection() {
+        open("/courier");
+        page.getByLabel("Delivery code").fill(registration.deliveryCode());
+        button("Confirm collection").click();
+    }
+
+    /** Types a code on the terminal of the scenario's station, starting from the welcome screen. */
+    private void enterCodeAtTheTerminal(String choice, String label, String code) {
+        if (!page.url().endsWith("/terminal/" + station)) {
+            open("/terminal/" + station);
+        } else if (exactButton("Finish").isVisible()) {
+            exactButton("Finish").click();
+        }
+        button(choice).click();
+        pinField(label).fill(code);
+        button("Open compartment").click();
+    }
+
+    @When("the courier enters the drop-off PIN at the terminal")
+    public void theCourierEntersTheDropOffPin() {
+        enterCodeAtTheTerminal("Drop off a parcel", "Enter the drop-off PIN", registration.dropOffCode());
+    }
+
+    @When("the recipient enters the pickup code at the terminal")
+    public void theRecipientEntersThePickupCode() {
+        enterCodeAtTheTerminal("Collect a parcel", "Enter your pickup code", pickupCode);
+    }
+
+    @When("someone enters {int} wrong pickup codes at the terminal")
+    public void someoneEntersWrongPickupCodes(int n) {
+        for (int i = 0; i < n; i++) {
+            String wrong = String.format("%06d", (Integer.parseInt(pickupCode) + 1 + i) % 1_000_000);
+            if (i == 0) {
+                enterCodeAtTheTerminal("Collect a parcel", "Enter your pickup code", wrong);
+            } else {
+                // stay on the code screen: wait for the previous answer, then type the next code
+                assertThat(page.getByRole(AriaRole.ALERT)).containsText((n - i) + " attempt(s) left");
+                pinField("Enter your pickup code").fill(wrong);
+                button("Open compartment").click();
+            }
+        }
+    }
+
+    @When("the courier closes the door")
+    @When("the recipient closes the door")
+    public void closesTheDoor() {
+        button("I have closed the door").click();
+    }
+
+    @When("the courier asks for another compartment")
+    public void theCourierAsksForAnotherCompartment() {
+        button("Use another compartment").click();
+    }
+
+    @When("the courier drops the new parcel off at the terminal")
+    public void theCourierDropsTheNewParcelOff() {
+        enterCodeAtTheTerminal("Drop off a parcel", "Enter the drop-off PIN", newRegistration.dropOffCode());
+        closesTheDoor();
+    }
+
+    // ------------------------------------------------------------------ When (front door): US5, US6
+
+    @When("I track the parcel")
+    public void iTrackTheParcel() {
+        iTrackTheParcel(registration.trackingCode());
+    }
+
+    @When("I track the parcel {string}")
+    public void iTrackTheParcel(String trackingCode) {
+        open("/tracking");
+        page.getByLabel("Tracking code").fill(trackingCode);
+        button("Track parcel").click();
+    }
+
+    @When("the operator shows the {string} parcels of station {string}")
+    public void theOperatorShowsTheParcels(String filter, String station) {
+        open("/operator/stations/" + station);
+        exactButton(filter).click();
     }
 
     @When("the operator registers the removal of the parcel")
-    public void operatorRemoval() {
-        post("/api/v1/operator/parcels/" + trackingCode() + "/removal", null);
-        assertThat(last.getResponse().getStatus()).isEqualTo(200);
+    public void theOperatorRegistersTheRemoval() {
+        parcelRow().getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Register removal")).click();
     }
 
-    @When("the operator puts compartment {string} of station {string} out of service")
-    public void operatorOutOfService(String compartment, String station) {
+    @When("the operator puts compartment {string} of station {string} out of service because {string}")
+    public void theOperatorPutsACompartmentOutOfService(String compartment, String station, String reason) {
         this.station = station;
-        last = mvc.put().uri("/api/v1/operator/stations/" + station + "/compartments/" + compartment + "/status")
-                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"OUT_OF_SERVICE\",\"reason\":\"Faulty lock\"}")
-                .exchange();
-        assertThat(last.getResponse().getStatus()).isEqualTo(204);
+        open("/operator/stations/" + station);
+        button(compartment + ",").click();
+        page.getByLabel("Reason").fill(reason);
+        exactButton("Put out of service").click();
     }
 
-    @Then("no parcel can be registered in compartment {string} of station {string}")
-    public void cannotRegisterIn(String compartment, String station) {
-        register(compartment.substring(0, 1), station, compartment, 24);
-        assertThat(last.getResponse().getStatus()).isEqualTo(409);
+    private Locator parcelRow() {
+        return page.getByRole(AriaRole.ROW).filter(new Locator.FilterOptions().setHasText(registration.trackingCode()));
+    }
+
+    // ------------------------------------------------------------------ Then (front door: what the user sees)
+
+    /** Exact text: "5 stations" must not be satisfied by "15 stations". */
+    @Then("I should see {string}")
+    public void iShouldSee(String text) {
+        assertThat(page.getByText(text, new Page.GetByTextOptions().setExact(true)).first()).isVisible();
+    }
+
+    /** Part of a message (alerts and status lines carry more text than the scenario needs to claim). */
+    @Then("I should see a message saying {string}")
+    public void iShouldSeeAMessageSaying(String text) {
+        assertThat(page.getByText(text).first()).isVisible();
+    }
+
+    @Then("the terminal should show {string}")
+    public void theTerminalShouldShow(String title) {
+        assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setLevel(1))).hasText(title);
+    }
+
+    @Then("the stations should be, in this order:")
+    public void theStationsShouldBeInThisOrder(List<String> names) {
+        assertThat(stationCards()).hasCount(names.size());
+        assertThat(stationCards()).containsText(names.toArray(new String[0]));
+    }
+
+    @Then("every station should show how many lockers are available")
+    public void everyStationShowsAvailability() {
+        int n = stationCards().count();
+        for (int i = 0; i < n; i++) {
+            assertThat(stationCards().nth(i)).containsText("available");
+        }
+    }
+
+    @Then("{string} should not be listed")
+    public void shouldNotBeListed(String name) {
+        assertThat(stationCards().filter(new Locator.FilterOptions().setHasText(name))).hasCount(0);
+    }
+
+    @Then("{int} stations should still be listed")
+    public void stationsShouldStillBeListed(int n) {
+        assertThat(stationCards()).hasCount(n);
+    }
+
+    @Then("I should see {int} compartments")
+    public void iShouldSeeCompartments(int n) {
+        assertThat(page.getByRole(AriaRole.GROUP, new Page.GetByRoleOptions().setName("Compartments, front view"))
+                .getByRole(AriaRole.BUTTON)).hasCount(n);
+    }
+
+    @Then("compartment {string} should be shown as {string}")
+    public void compartmentShouldBeShownAs(String compartment, String availability) {
+        assertThat(button(compartment + ",")).hasAccessibleName(Pattern.compile(", " + availability + "$"));
+    }
+
+    @Then("I should see a tracking code, a delivery code and a 6-digit drop-off PIN")
+    public void iShouldSeeTheCodes() {
+        assertThat(page.getByTestId("tracking-code")).hasText(Pattern.compile("ORB-\\d{6}-\\d{4}"));
+        assertThat(page.getByTestId("delivery-code")).hasText(Pattern.compile("DLV-\\w{12}"));
+        assertThat(page.getByTestId("drop-off-code")).hasText(Pattern.compile("\\d{6}"));
+    }
+
+    @Then("I should not be able to continue the registration")
+    public void iShouldNotBeAbleToContinue() {
+        assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Register").setExact(true)))
+                .hasCount(0);
+    }
+
+    @Then("the timeline should be, in this order:")
+    public void theTimelineShouldBeInThisOrder(List<String> steps) {
+        assertThat(page.getByTestId("timeline").getByRole(AriaRole.LISTITEM)).containsText(steps.toArray(new String[0]));
+    }
+
+    @Then("the parcel should be listed")
+    public void theParcelShouldBeListed() {
+        assertThat(parcelRow()).hasCount(1);
+    }
+
+    @Then("I should see {string} in the malfunction reports")
+    public void iShouldSeeInTheMalfunctionReports(String text) {
+        assertThat(page.getByRole(AriaRole.REGION, new Page.GetByRoleOptions().setName("Malfunction reports")))
+                .containsText(text);
+    }
+
+    @Then("the new drop-off PIN sent to the sender should open compartment {string}")
+    public void theNewDropOffPinShouldOpen(String compartment) {
+        String newPin = latestCode(registration.trackingCode(), Notification.Type.REPLACEMENT_DROP_OFF_CODE);
+        Assertions.assertThat(newPin).isNotEqualTo(registration.dropOffCode());
+        enterCodeAtTheTerminal("Drop off a parcel", "Enter the drop-off PIN", newPin);
+        theTerminalShouldShow("Compartment " + compartment + " is open");
+    }
+
+    // ------------------------------------------------------------------ Then (back door: what was stored)
+
+    @Then("the parcel should be stored as {string}")
+    public void theParcelShouldBeStoredAs(String state) {
+        Assertions.assertThat(parcels.findByTrackingCode(registration.trackingCode()).orElseThrow().getState())
+                .hasToString(state);
+    }
+
+    @Then("the parcel should be stored as {string} in compartment {string}")
+    public void theParcelShouldBeStoredIn(String state, String compartment) {
+        String trackingCode = page.getByTestId("tracking-code").textContent();
+        Assertions.assertThat(parcels.findByTrackingCode(trackingCode).orElseThrow().getState()).hasToString(state);
+        Assertions.assertThat(activeParcelsIn(compartment)).isEqualTo(1);
+    }
+
+    @Then("the parcel should be stored as {string} by {string}")
+    public void theParcelShouldBeStoredAsBy(String state, String actor) {
+        theParcelShouldBeStoredAs(state);
+        Assertions.assertThat(jdbc.queryForObject("""
+                SELECT t.actor FROM parcel_transition t JOIN parcel p ON p.id = t.parcel_id
+                WHERE p.tracking_code = ? ORDER BY t.id DESC LIMIT 1""", String.class, registration.trackingCode()))
+                .isEqualTo(actor);
+    }
+
+    @Then("the expired parcel should be stored as {string}")
+    public void theExpiredParcelShouldBeStoredAs(String state) {
+        theParcelShouldBeStoredAs(state);
+    }
+
+    @Then("the drop-off deadline should be {int} working days after the registration")
+    public void theDropOffDeadlineShouldBe(int workingDays) {
+        // registered at AbstractIntegrationTest.NOW, Saturday 24 Oct 2026 09:00 Lisbon -> Friday 6 Nov 2026 09:00
+        Assertions.assertThat(workingDays).isEqualTo(10);
+        Assertions.assertThat(jdbc.queryForObject("SELECT drop_off_deadline FROM parcel", java.sql.Timestamp.class)
+                .toInstant()).isEqualTo(TestData.DROP_OFF_DEADLINE);
+    }
+
+    @Then("compartment {string} should be stored as {string}")
+    public void compartmentShouldBeStoredAs(String compartment, String status) {
+        Assertions.assertThat(jdbc.queryForObject("""
+                SELECT c.status FROM compartment c JOIN station s ON s.id = c.station_id
+                WHERE s.code = ? AND c.code = ?""", String.class, station, compartment)).isEqualTo(status);
+    }
+
+    @Then("compartment {string} should be free again")
+    public void compartmentShouldBeFreeAgain(String compartment) {
+        Assertions.assertThat(activeParcelsIn(compartment)).isZero();
+    }
+
+    @Then("the operator should be notified of a {string} in compartment {string}")
+    public void theOperatorShouldBeNotified(String type, String compartment) {
+        Assertions.assertThat(jdbc.queryForList("""
+                SELECT i.type FROM incident i JOIN compartment c ON c.id = i.compartment_id WHERE c.code = ?""",
+                String.class, compartment)).containsExactly(type);
+        Assertions.assertThat(outbox.latest())
+                .anySatisfy(e -> Assertions.assertThat(e.notification().type()).isEqualTo(Notification.Type.OPERATOR_ALERT));
+    }
+
+    @Then("the recipient should receive a 6-digit pickup code different from the drop-off PIN")
+    public void theRecipientShouldReceiveAPickupCode() {
+        pickupCode = latestCode(registration.trackingCode(), Notification.Type.PICKUP_CODE);
+        Assertions.assertThat(pickupCode).matches("\\d{6}").isNotEqualTo(registration.dropOffCode());
+        Assertions.assertThat(outbox.latest().get(0).notification().toEmail()).isEqualTo(TestData.RECIPIENT.getEmail());
+    }
+
+    @Then("the stored history should be:")
+    public void theStoredHistoryShouldBe(List<Map<String, String>> expected) {
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT t.to_state, t.actor, t.occurred_at FROM parcel_transition t JOIN parcel p ON p.id = t.parcel_id
+                WHERE p.tracking_code = ? ORDER BY t.id""", registration.trackingCode());
+        Assertions.assertThat(rows).hasSameSizeAs(expected);
+        for (int i = 0; i < expected.size(); i++) {
+            Assertions.assertThat(rows.get(i)).containsEntry("to_state", expected.get(i).get("to"))
+                    .containsEntry("actor", expected.get(i).get("actor"));
+            Assertions.assertThat(rows.get(i).get("occurred_at")).isNotNull();
+        }
     }
 }

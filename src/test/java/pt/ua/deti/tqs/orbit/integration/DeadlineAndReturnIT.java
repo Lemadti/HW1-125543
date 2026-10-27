@@ -1,103 +1,155 @@
 package pt.ua.deti.tqs.orbit.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.is;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.jayway.jsonpath.JsonPath;
 import java.time.Duration;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import tools.jackson.databind.JsonNode;
+import org.springframework.http.MediaType;
+import pt.ua.deti.tqs.orbit.domain.ParcelState;
 import pt.ua.deti.tqs.orbit.service.DeadlineService;
+import pt.ua.deti.tqs.orbit.service.view.RegistrationResult;
 import pt.ua.deti.tqs.orbit.support.AbstractIntegrationTest;
 
-/** Time-based rules with the real database. The clock is moved; nothing sleeps. */
+/**
+ * Time-based rules with the whole application and the real database.
+ *
+ * <p>The application clock (a {@code MutableClock} bean) is moved by the test and the deadline job is run explicitly,
+ * as the scheduler would: nothing sleeps. Arrange through the back door (services), act through the API (MockMvc),
+ * check what was stored (repositories).</p>
+ */
+@DisplayName("Deadlines — whole application, clock moved, real PostgreSQL")
 class DeadlineAndReturnIT extends AbstractIntegrationTest {
 
     @Autowired
-    DeadlineService deadlines;
+    private DeadlineService deadlines;
 
-    @Test
-    void leaseEndCancelsAnUncollectedParcelAndFreesTheCompartment() {
-        JsonNode reg = register(FORUM, "M", "M-07", 24);
-        String tc = reg.get("trackingCode").asString();
-
-        clock.advance(Duration.ofHours(23).plusMinutes(59));
-        assertThat(deadlines.processDeadlines().cancelled()).isZero();
-
-        clock.advance(Duration.ofMinutes(1));
-        assertThat(deadlines.processDeadlines().cancelled()).isEqualTo(1);
-        JsonNode track = json(get("/api/v1/parcels/" + tc));
-        assertThat(track.get("state").asString()).isEqualTo("CANCELLED");
-        JsonNode last = track.get("history").get(track.get("history").size() - 1);
-        assertThat(last.get("actor").asString()).isEqualTo("SYSTEM");
-        assertThat(last.get("event").asString()).isEqualTo("DROP_OFF_DEADLINE_PASSED");
-
-        assertThat(register(FORUM, "M", "M-07", 24).get("compartmentCode").asString()).isEqualTo("M-07");
-        // the courier can no longer collect the cancelled parcel
-        assertThat(post("/api/v1/courier/collections", "{\"deliveryCode\":\"" + reg.get("deliveryCode").asString() + "\"}"))
-                .hasStatus(HttpStatus.CONFLICT);
+    private static String code(String pin) {
+        return "{\"code\":\"" + pin + "\"}";
     }
 
     @Test
-    void pickupWindowEndExpiresTheParcelButTheCodeStillWorks() {
-        JsonNode reg = register(FORUM, "S", "S-01", 24);
+    @DisplayName("Drop-off deadline: an uncollected parcel is cancelled by SYSTEM one second after it")
+    void givenAnUncollectedParcel_whenTheDropOffDeadlinePasses_thenCancelledAndCompartmentFree() throws Exception {
+        RegistrationResult reg = register(FORUM, "M", "M-07");
+
+        clock.setFixed(reg.dropOffDeadline());
+        assertThat(deadlines.processDeadlines().cancelled()).isZero();
+        clock.setFixed(reg.dropOffDeadline().plusSeconds(1));
+        assertThat(deadlines.processDeadlines().cancelled()).isEqualTo(1);
+
+        assertThat(stateOf(reg.trackingCode())).isEqualTo(ParcelState.CANCELLED);
+        assertThat(lastActorOf(reg.trackingCode())).isEqualTo("SYSTEM");
+        mvc.perform(post("/api/v1/courier/collections").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"deliveryCode\":\"" + reg.deliveryCode() + "\"}"))
+                .andExpect(status().isConflict());
+        assertThat(register(FORUM, "M", "M-07").compartmentCode()).isEqualTo("M-07");
+    }
+
+    @Test
+    @DisplayName("Drop-off deadline: a collected parcel that was not dropped off is cancelled too")
+    void givenACollectedParcel_whenTheDropOffDeadlinePasses_thenCancelled() throws Exception {
+        RegistrationResult reg = register(FORUM, "M", "M-07");
+        collect(reg);
+
+        clock.setFixed(reg.dropOffDeadline().plusSeconds(1));
+        assertThat(deadlines.processDeadlines().cancelled()).isEqualTo(1);
+
+        mvc.perform(get("/api/v1/parcels/" + reg.trackingCode()))
+                .andExpect(jsonPath("$.state", is("CANCELLED")))
+                .andExpect(jsonPath("$.history[-1:].event", contains("DROP_OFF_DEADLINE_PASSED")));
+        assertThat(register(FORUM, "M", "M-07").compartmentCode()).isEqualTo("M-07");
+    }
+
+    @Test
+    @DisplayName("Pickup deadline: after 15 days the parcel EXPIRES but its code still works")
+    void givenAParcelWaiting_whenFifteenDaysPass_thenExpiredButCodeStillWorks() throws Exception {
+        RegistrationResult reg = register(FORUM, "S", "S-01");
         String pin = deliverToLocker(FORUM, reg);
-        String tc = reg.get("trackingCode").asString();
 
         clock.advance(Duration.ofDays(15));
         assertThat(deadlines.processDeadlines().expired()).isEqualTo(1);
-        assertThat(state(tc)).isEqualTo("EXPIRED");
+        assertThat(stateOf(reg.trackingCode())).isEqualTo(ParcelState.EXPIRED);
 
-        assertThat(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"" + pin + "\"}"))
-                .hasStatus(HttpStatus.OK).bodyJson().extractingPath("$.state").isEqualTo("PICKED_UP");
+        mvc.perform(post("/api/v1/terminals/" + FORUM + "/pickups").contentType(MediaType.APPLICATION_JSON).content(code(pin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state", is("PICKED_UP")));
     }
 
     @Test
-    void expiredCompartmentIsReallocatedAndTheOldParcelIsReturnedOnTheNextDropOff() {
-        JsonNode old = register(FORUM, "L", "L-04", 24);
+    @DisplayName("Pickup deadline: an expired parcel becomes TO_RETURN when its compartment is reused, RETURNED on the next drop-off")
+    void givenAnExpiredParcel_whenItsCompartmentIsReused_thenToReturnAndThenReturned() throws Exception {
+        RegistrationResult old = register(FORUM, "L", "L-04");
         deliverToLocker(FORUM, old);
         clock.advance(Duration.ofDays(15));
         deadlines.processDeadlines();
-        String oldTc = old.get("trackingCode").asString();
 
-        // the expired compartment is allocatable again; allocation flags the old parcel TO_RETURN (system)
-        JsonNode next = register(FORUM, "L", "L-04", 24);
-        assertThat(state(oldTc)).isEqualTo("TO_RETURN");
+        String body = mvc.perform(post("/api/v1/parcels").contentType(MediaType.APPLICATION_JSON)
+                        .content(registerBody(FORUM, "L", "L-04")))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(stateOf(old.trackingCode())).isEqualTo(ParcelState.TO_RETURN);
+        assertThat(lastActorOf(old.trackingCode())).isEqualTo("SYSTEM");
 
-        deliverToLocker(FORUM, next);
-        assertThat(state(oldTc)).isEqualTo("RETURNED");
-        JsonNode history = json(get("/api/v1/parcels/" + oldTc)).get("history");
-        assertThat(history).extracting(h -> h.get("to").asString() + "/" + h.get("actor").asString())
-                .endsWith("EXPIRED/SYSTEM", "TO_RETURN/SYSTEM", "RETURNED/COURIER");
-        assertThat(state(next.get("trackingCode").asString())).isEqualTo("READY_FOR_PICKUP");
+        // the courier collects the new parcel and drops it off in L-04, taking the old one out
+        String next = JsonPath.read(body, "$.trackingCode");
+        parcelService.collect(JsonPath.read(body, "$.deliveryCode"), null);
+        String token = JsonPath.read(mvc.perform(post("/api/v1/terminals/" + FORUM + "/drop-offs")
+                        .contentType(MediaType.APPLICATION_JSON).content(code(JsonPath.read(body, "$.dropOffCode"))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.sessionToken");
+        mvc.perform(post("/api/v1/terminals/" + FORUM + "/drop-offs/" + token + "/door-closed"))
+                .andExpect(jsonPath("$.outcome", is("DEPOSITED")));
+
+        assertThat(stateOf(old.trackingCode())).isEqualTo(ParcelState.RETURNED);
+        assertThat(lastActorOf(old.trackingCode())).isEqualTo("COURIER");
+        assertThat(stateOf(next)).isEqualTo(ParcelState.READY_FOR_PICKUP);
+        mvc.perform(get("/api/v1/parcels/" + old.trackingCode()))
+                .andExpect(jsonPath("$.history[-3:].to", contains("EXPIRED", "TO_RETURN", "RETURNED")));
     }
 
     @Test
-    void operatorRegistersRemovalOfAnExpiredParcel() {
-        JsonNode reg = register(FORUM, "M", "M-03", 24);
+    @DisplayName("US6: the operator lists the expired parcels and registers the removal; the code then stops working")
+    void givenAnExpiredParcel_whenTheOperatorRegistersTheRemoval_thenReturned() throws Exception {
+        RegistrationResult reg = register(FORUM, "M", "M-03");
         String pin = deliverToLocker(FORUM, reg);
         clock.advance(Duration.ofDays(16));
         deadlines.processDeadlines();
-        String tc = reg.get("trackingCode").asString();
 
-        assertThat(get("/api/v1/operator/stations/" + FORUM + "/parcels?state=EXPIRED"))
-                .bodyJson().extractingPath("$[0].trackingCode").isEqualTo(tc);
-        assertThat(post("/api/v1/operator/parcels/" + tc + "/removal", null)).hasStatus(HttpStatus.OK)
-                .bodyJson().extractingPath("$.state").isEqualTo("RETURNED");
-        // after removal the recipient can no longer collect it
-        assertThat(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"" + pin + "\"}"))
-                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
+        mvc.perform(get("/api/v1/operator/stations/" + FORUM + "/parcels").param("state", "EXPIRED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].trackingCode", contains(reg.trackingCode())));
+        mvc.perform(post("/api/v1/operator/parcels/" + reg.trackingCode() + "/removal"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state", is("RETURNED")));
+
+        assertThat(stateOf(reg.trackingCode())).isEqualTo(ParcelState.RETURNED);
+        assertThat(lastActorOf(reg.trackingCode())).isEqualTo("OPERATOR");
+        mvc.perform(post("/api/v1/terminals/" + FORUM + "/pickups").contentType(MediaType.APPLICATION_JSON).content(code(pin)))
+                .andExpect(status().isUnprocessableContent());
     }
 
     @Test
-    void lockoutEndsAfterOneHourOfClockTime() {
+    @DisplayName("Codes: the terminal block ends after one hour of clock time")
+    void givenABlockedTerminal_whenOneHourPasses_thenCodesAreCheckedAgain() throws Exception {
         for (int i = 0; i < 3; i++) {
-            post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"00000" + i + "\"}");
+            mvc.perform(post("/api/v1/terminals/" + FORUM + "/pickups").contentType(MediaType.APPLICATION_JSON)
+                    .content(code("00000" + i)));
         }
-        assertThat(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"999999\"}"))
-                .hasStatus(HttpStatus.TOO_MANY_REQUESTS);
+        mvc.perform(post("/api/v1/terminals/" + FORUM + "/pickups").contentType(MediaType.APPLICATION_JSON).content(code("999999")))
+                .andExpect(status().isTooManyRequests());
+
         clock.advance(Duration.ofHours(1));
-        assertThat(post("/api/v1/terminals/" + FORUM + "/pickups", "{\"code\":\"999999\"}"))
-                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
+
+        mvc.perform(post("/api/v1/terminals/" + FORUM + "/pickups").contentType(MediaType.APPLICATION_JSON).content(code("999999")))
+                .andExpect(status().isUnprocessableContent());
     }
 }

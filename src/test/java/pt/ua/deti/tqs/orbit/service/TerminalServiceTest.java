@@ -5,8 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.security.SecureRandom;
@@ -17,7 +18,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import pt.ua.deti.tqs.orbit.adapter.hardware.FakeLockerHardware;
 import pt.ua.deti.tqs.orbit.adapter.hardware.FakeLockerHardware.Fault;
 import pt.ua.deti.tqs.orbit.config.MutableClock;
@@ -52,7 +56,10 @@ import pt.ua.deti.tqs.orbit.support.TestProperties;
  *   <li>{@link MutableClock} for time;</li>
  *   <li>Mockito mocks for the repositories (persistence is covered by the integration tests).</li>
  * </ul>
+ * No Spring context is started: the service is built with {@code new} in {@code setUp}.
  */
+@ExtendWith(MockitoExtension.class)
+@DisplayName("TerminalService — the locker terminal (US3, US4) and hardware failures")
 class TerminalServiceTest {
 
     private static final String STATION = "ORB-AVR-001";
@@ -61,10 +68,14 @@ class TerminalServiceTest {
     private final MutableClock clock = MutableClock.fixedAt(TestData.T0);
     private final FakeLockerHardware hardware = new FakeLockerHardware(false);
     private final RecordingNotifier notifier = new RecordingNotifier();
-    private final StationRepository stations = mock(StationRepository.class);
-    private final ParcelRepository parcels = mock(ParcelRepository.class);
-    private final CompartmentRepository compartments = mock(CompartmentRepository.class);
-    private final IncidentRepository incidents = mock(IncidentRepository.class);
+    @Mock
+    private StationRepository stations;
+    @Mock
+    private ParcelRepository parcels;
+    @Mock
+    private CompartmentRepository compartments;
+    @Mock
+    private IncidentRepository incidents;
     private final CodeService codes = new CodeService(new SecureRandom(), "test-secret", 6);
 
     private final Station station = TestData.station(1, STATION, 52.23, 21.01);
@@ -82,17 +93,20 @@ class TerminalServiceTest {
                 transitions, new IncidentReporter(incidents, notifier, clock), clock, TestProperties.defaults());
 
         parcel = TestData.parcel(10, "ORB-261024-0714", m07, codes.hash(DROP_PIN));
-        when(stations.findByCode(STATION)).thenReturn(Optional.of(station));
-        when(stations.findByCodeForUpdate(STATION)).thenReturn(Optional.of(station));
-        when(parcels.findByStationAndDropOffCodeHashAndStateIn(eq(station), anyString(), any())).thenReturn(Optional.empty());
-        when(parcels.findByStationAndDropOffCodeHashAndStateIn(eq(station), eq(codes.hash(DROP_PIN)), any()))
+        // The stubs below make the repository mocks behave as a tiny in-memory database holding one parcel (a fake
+        // shared by every test). Not every test reaches every query, so they are lenient on purpose: they are
+        // answers, not expectations. Interactions that matter are checked with verify(...) in the tests.
+        lenient().when(stations.findByCode(STATION)).thenReturn(Optional.of(station));
+        lenient().when(stations.findByCodeForUpdate(STATION)).thenReturn(Optional.of(station));
+        lenient().when(parcels.findByStationAndDropOffCodeHashAndStateIn(eq(station), anyString(), any())).thenReturn(Optional.empty());
+        lenient().when(parcels.findByStationAndDropOffCodeHashAndStateIn(eq(station), eq(codes.hash(DROP_PIN)), any()))
                 .thenReturn(Optional.of(parcel));
-        when(parcels.findByStationAndPickupCodeHashAndStateIn(eq(station), anyString(), any())).thenReturn(Optional.empty());
-        when(parcels.findByStationAndTerminalSession(eq(station), anyString()))
+        lenient().when(parcels.findByStationAndPickupCodeHashAndStateIn(eq(station), anyString(), any())).thenReturn(Optional.empty());
+        lenient().when(parcels.findByStationAndTerminalSession(eq(station), anyString()))
                 .thenAnswer(inv -> Optional.of(parcel).filter(p -> p.hasTerminalSession(inv.getArgument(1), clock.instant())));
-        when(parcels.findByCompartmentAndStateIn(any(), any())).thenReturn(List.of());
-        when(compartments.findAllocatable(station, CompartmentSize.M)).thenReturn(List.of(m11));
-        when(compartments.findByStationAndCode(station, "M-11")).thenReturn(Optional.of(m11));
+        lenient().when(parcels.findByCompartmentAndStateIn(any(), any())).thenReturn(List.of());
+        lenient().when(compartments.findAllocatable(station, CompartmentSize.M)).thenReturn(List.of(m11));
+        lenient().when(compartments.findByStationAndCode(station, "M-11")).thenReturn(Optional.of(m11));
     }
 
     private void collected() {
@@ -115,6 +129,7 @@ class TerminalServiceTest {
     class DropOff {
 
         @Test
+        @DisplayName("US3: the door opens; closing it deposits the parcel and sends the pickup code")
         void happyPathOpensDoorThenDepositsWhenTheDoorIsClosed() {
             collected();
             TerminalResult opened = terminal.startDropOff(STATION, DROP_PIN);
@@ -138,13 +153,17 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("US3: a parcel not yet collected is refused without opening any door")
         void parcelNotYetCollectedIsRejectedWithoutOpeningAnyDoor() {
             assertThatThrownBy(() -> terminal.startDropOff(STATION, DROP_PIN))
                     .isInstanceOf(InvalidTransitionException.class);
             assertThat(hardware.calls()).isEmpty();
+            verifyNoInteractions(incidents);
+            assertThat(notifier.sent()).isEmpty();
         }
 
         @Test
+        @DisplayName("Door doesn't open: out of service, incident saved, replacement offered")
         void doorThatDoesNotOpenPutsCompartmentOutOfServiceAndOffersReplacement() {
             collected();
             hardware.inject(m07Ref, Fault.DOOR_WONT_OPEN);
@@ -163,6 +182,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Door doesn't open: the replacement code opens the new compartment")
         void replacementMovesTheParcelAndSendsANewCodeThatOpensTheNewCompartment() {
             collected();
             hardware.inject(m07Ref, Fault.DOOR_WONT_OPEN);
@@ -185,6 +205,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Door doesn't open: no replacement when no compartment of that size is free")
         void noReplacementWhenNoOtherCompartmentOfTheSameSizeIsFree() {
             collected();
             hardware.inject(m07Ref, Fault.DOOR_WONT_OPEN);
@@ -200,6 +221,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Door doesn't open: a replacement without a failure is refused")
         void replacementWithoutAFailureIsRejected() {
             collected();
             TerminalResult opened = terminal.startDropOff(STATION, DROP_PIN);
@@ -208,6 +230,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Door doesn't close: the parcel stays ON_ITS_WAY and no pickup code is sent")
         void doorThatDoesNotCloseKeepsTheParcelOnItsWayAndReportsTheFailure() {
             collected();
             hardware.inject(m07Ref, Fault.DOOR_WONT_CLOSE);
@@ -224,6 +247,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Interface doesn't respond: HARDWARE_UNAVAILABLE and the compartment stays in service")
         void unreachableHardwareIsReportedWithoutChangingTheCompartment() {
             collected();
             hardware.setStationUnreachable(true);
@@ -238,6 +262,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Pickup deadline: a TO_RETURN parcel is RETURNED by the courier on the next drop-off")
         void expiredParcelFlaggedToReturnIsRemovedOnTheNextDropOff() {
             Parcel old = TestData.parcel(9, "ORB-261001-0001", m07, null);
             old.apply(ParcelEvent.COLLECT, Actor.COURIER, TestData.T0, null);
@@ -257,6 +282,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Terminal: an expired session cannot confirm the door")
         void expiredSessionCannotConfirm() {
             collected();
             TerminalResult opened = terminal.startDropOff(STATION, DROP_PIN);
@@ -271,6 +297,7 @@ class TerminalServiceTest {
     class Codes {
 
         @Test
+        @DisplayName("Codes: wrong codes report the attempts left and the third blocks the terminal")
         void wrongCodeReportsRemainingAttemptsAndTheThirdBlocksTheTerminal() {
             assertThatThrownBy(() -> terminal.startPickup(STATION, "000000"))
                     .isInstanceOfSatisfying(OrbitException.class, e -> assertThat(e.getDetails()).containsEntry("remainingAttempts", 2));
@@ -281,6 +308,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Codes: while blocked even the correct code is refused, for one hour")
         void blockedTerminalRejectsEvenTheCorrectCodeUntilTheLockoutEnds() {
             String pin = pickupCodeAfterDeposit();
             for (String wrong : List.of("000000", "000001")) {
@@ -295,6 +323,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Codes: a malformed code counts as a wrong attempt")
         void malformedCodeCountsAsAWrongAttempt() {
             assertThatThrownBy(() -> terminal.startDropOff(STATION, "12"))
                     .isInstanceOfSatisfying(OrbitException.class, e -> assertThat(e.getCode()).isEqualTo("INVALID_CODE"));
@@ -306,6 +335,7 @@ class TerminalServiceTest {
     class Pickup {
 
         @Test
+        @DisplayName("US4 / NFR6: a valid code opens the door and is single use")
         void validCodeOpensTheDoorAndThePickupCodeIsSingleUse() {
             String pin = pickupCodeAfterDeposit();
 
@@ -321,6 +351,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Door doesn't open: at pickup the code stays valid and the parcel READY")
         void doorThatDoesNotOpenKeepsTheCodeValidAndTheParcelReady() {
             String pin = pickupCodeAfterDeposit();
             hardware.inject(m07Ref, Fault.DOOR_WONT_OPEN);
@@ -335,6 +366,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Door doesn't close: after pickup it is reported, the pickup stands")
         void doorThatDoesNotCloseAfterPickupIsReportedButThePickupStands() {
             String pin = pickupCodeAfterDeposit();
             hardware.inject(m07Ref, Fault.DOOR_WONT_CLOSE);
@@ -348,6 +380,7 @@ class TerminalServiceTest {
         }
 
         @Test
+        @DisplayName("Pickup deadline: an EXPIRED parcel can still be collected")
         void expiredParcelCanStillBeCollected() {
             String pin = pickupCodeAfterDeposit();
             parcel.apply(ParcelEvent.PICKUP_DEADLINE_PASSED, Actor.SYSTEM, clock.instant(), null);

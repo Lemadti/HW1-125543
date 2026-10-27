@@ -1,0 +1,18 @@
+[
+  {
+    "place_id": 104383264,
+    "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "osm_type": "way",
+    "osm_id": 159302187,
+    "lat": "40.6403",
+    "lon": "-8.6537",
+    "category": "highway",
+    "type": "residential",
+    "place_rank": 26,
+    "importance": 0.0533,
+    "addresstype": "road",
+    "name": "Rua de Coimbra",
+    "display_name": "Rua de Coimbra, Glória, Aveiro, 3810-086, Portugal",
+    "boundingbox": ["40.6398", "40.6409", "-8.6545", "-8.6529"]
+  }
+]

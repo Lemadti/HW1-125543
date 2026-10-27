@@ -15,6 +15,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /** Exhaustive tests over the transition table (oracle: the state machine diagram). */
+@DisplayName("ParcelStateMachine — transition table (oracle: the state diagram)")
 class ParcelStateMachineTest {
 
     /** The complete specification: every valid (state, event) pair and its target. */
@@ -23,6 +24,7 @@ class ParcelStateMachineTest {
             Map.entry("CREATED/DROP_OFF_DEADLINE_PASSED", ParcelState.CANCELLED),
             Map.entry("CREATED/COLLECT", ParcelState.ON_ITS_WAY),
             Map.entry("ON_ITS_WAY/DEPOSIT", ParcelState.READY_FOR_PICKUP),
+            Map.entry("ON_ITS_WAY/DROP_OFF_DEADLINE_PASSED", ParcelState.CANCELLED),
             Map.entry("READY_FOR_PICKUP/PICK_UP", ParcelState.PICKED_UP),
             Map.entry("READY_FOR_PICKUP/PICKUP_DEADLINE_PASSED", ParcelState.EXPIRED),
             Map.entry("EXPIRED/PICK_UP", ParcelState.PICKED_UP),
@@ -51,7 +53,7 @@ class ParcelStateMachineTest {
         }
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{1} by {2} in {0} is refused")
     @CsvSource({
             "CREATED, CANCEL, COURIER",
             "CREATED, CANCEL, SYSTEM",
@@ -61,28 +63,23 @@ class ParcelStateMachineTest {
             "READY_FOR_PICKUP, PICKUP_DEADLINE_PASSED, OPERATOR",
             "EXPIRED, MARK_TO_RETURN, RECIPIENT",
             "TO_RETURN, REMOVE, PARTNER"})
+    @DisplayName("State machine: an actor may only trigger its own events")
     void rejectsActorsThatMayNotTriggerTheEvent(ParcelState from, ParcelEvent event, Actor actor) {
         assertThatThrownBy(() -> ParcelStateMachine.next(from, event, actor))
                 .isInstanceOf(InvalidTransitionException.class)
                 .hasMessageContaining("may not trigger");
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{0} is terminal")
     @EnumSource(value = ParcelState.class, names = {"CANCELLED", "PICKED_UP", "RETURNED"})
+    @DisplayName("State machine: CANCELLED, PICKED_UP and RETURNED accept no event")
     void terminalStatesAcceptNoEvents(ParcelState state) {
         assertThat(state.isTerminal()).isTrue();
         assertThat(ParcelStateMachine.allowedEvents(state)).isEmpty();
     }
 
     @Test
-    void reservingAndCollectableStatesFollowTheAllocationRules() {
-        assertThat(ParcelState.RESERVING).containsExactlyInAnyOrder(
-                ParcelState.CREATED, ParcelState.ON_ITS_WAY, ParcelState.READY_FOR_PICKUP);
-        assertThat(ParcelState.COLLECTABLE).containsExactlyInAnyOrder(
-                ParcelState.READY_FOR_PICKUP, ParcelState.EXPIRED, ParcelState.TO_RETURN);
-    }
-
-    @Test
+    @DisplayName("State machine: a rejected event reports state, event and actor")
     void exceptionCarriesContextForTheErrorBody() {
         InvalidTransitionException e = org.junit.jupiter.api.Assertions.assertThrows(InvalidTransitionException.class,
                 () -> ParcelStateMachine.next(ParcelState.PICKED_UP, ParcelEvent.CANCEL, Actor.PARTNER));

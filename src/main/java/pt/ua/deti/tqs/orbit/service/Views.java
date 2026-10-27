@@ -53,7 +53,7 @@ final class Views {
         return new TrackingView(p.getTrackingCode(), p.getState(), s.getCode(), s.getName(),
                 s.getAddress() + ", " + s.getPostalCode() + " " + s.getCity(), s.getLatitude(), s.getLongitude(),
                 p.getCompartment().getCode(), p.getSize(), p.getRecipient().maskedName(), p.getCreatedAt(),
-                p.getLeaseStart(), p.getLeaseHours(), p.getDropOffDeadline(), p.getDepositedAt(),
+                p.getDropOffDeadline(), p.getDepositedAt(),
                 p.getPickupDeadline(), p.lastLocation().map(Views::location).orElse(null),
                 p.getLocations().stream().map(Views::location).toList(),
                 p.getHistory().stream().map(Views::transition).toList(),
@@ -69,7 +69,7 @@ final class Views {
     static ParcelDetail detail(Parcel p) {
         return new ParcelDetail(p.getTrackingCode(), p.getState(), p.getStation().getCode(),
                 p.getStation().getName(), p.getCompartment().getCode(), p.getSize(), contact(p.getSender()),
-                contact(p.getRecipient()), p.getCreatedAt(), p.getLeaseStart(), p.getLeaseHours(), p.getPrice(),
+                contact(p.getRecipient()), p.getCreatedAt(), p.getPrice(),
                 p.getDropOffDeadline(), p.getDepositedAt(), p.getPickupDeadline(),
                 p.lastLocation().map(Views::location).orElse(null),
                 p.getHistory().stream().map(Views::transition).toList(),

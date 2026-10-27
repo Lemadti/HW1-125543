@@ -78,6 +78,7 @@
     })
   });
   buttons.forEach(b => b.addEventListener('click', () => { size = b.dataset.size; paint(); search.refresh(); }));
+  setInterval(() => search.refresh(), 60000); // NFR7: live availability
 })();
 </script>
 </body>

@@ -11,9 +11,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import pt.ua.deti.tqs.orbit.adapter.geocoding.NominatimGeocoder;
 import pt.ua.deti.tqs.orbit.config.MutableClock;
@@ -25,8 +30,14 @@ import pt.ua.deti.tqs.orbit.support.TestData;
 
 /**
  * The Nominatim client against a stubbed HTTP server (WireMock): request format, parsing, and the behaviour when the
- * provider is slow, failing, over its limits or returns nothing. The real provider is never called.
+ * provider is slow, failing, over its limits or returns nothing. The real provider is never called (OSM usage policy).
+ *
+ * <p>The response bodies are recorded in {@code src/test/resources/nominatim} (see {@code FIXTURES.md}) and loaded with
+ * {@link #fixture(String)}: a stub that returns a body the provider would never return is not a test, it is a wish.
+ * Unlike a Mockito stub of the HTTP client, WireMock is a real HTTP server, so the request (URL, query, User-Agent),
+ * the timeouts and the status codes go through the real client.</p>
  */
+@DisplayName("NominatimGeocoder — real HTTP client against a WireMock server")
 class NominatimGeocoderIT {
 
     private WireMockServer server;
@@ -49,10 +60,22 @@ class NominatimGeocoderIT {
         server.stop();
     }
 
+    /** Reads a recorded response body from {@code src/test/resources/nominatim}. */
+    static String fixture(String name) {
+        try (InputStream in = NominatimGeocoderIT.class.getClassLoader().getResourceAsStream("nominatim/" + name)) {
+            if (in == null) {
+                throw new IllegalArgumentException("no such fixture: " + name);
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     @Test
+    @DisplayName("NFR4: parses the first result and sends a policy-compliant request (User-Agent, limit=1)")
     void parsesFirstResultAndSendsPolicyCompliantRequest() {
-        server.stubFor(get(urlPathEqualTo("/search")).willReturn(okJson(
-                "[{\"lat\":\"40.6403\",\"lon\":\"-8.6537\",\"display_name\":\"Rua de Coimbra, Aveiro\"}]")));
+        server.stubFor(get(urlPathEqualTo("/search")).willReturn(okJson(fixture("search-rua-de-coimbra.json"))));
 
         assertThat(geocoder.geocode("Rua de Coimbra 10, Aveiro")).contains(new GeoPoint(40.6403, -8.6537));
         server.verify(getRequestedFor(urlPathEqualTo("/search"))
@@ -64,12 +87,14 @@ class NominatimGeocoderIT {
     }
 
     @Test
+    @DisplayName("US1: an empty result means the address was not found")
     void emptyResultMeansNotFound() {
-        server.stubFor(get(urlPathEqualTo("/search")).willReturn(okJson("[]")));
+        server.stubFor(get(urlPathEqualTo("/search")).willReturn(okJson(fixture("search-empty.json"))));
         assertThat(geocoder.geocode("Nowhere")).isEmpty();
     }
 
     @Test
+    @DisplayName("NFR4: a slow provider times out (TIMEOUT)")
     void slowProviderTimesOut() {
         server.stubFor(get(urlPathEqualTo("/search")).willReturn(okJson("[]").withFixedDelay(4000)));
         assertThatThrownBy(() -> geocoder.geocode("x"))
@@ -77,6 +102,7 @@ class NominatimGeocoderIT {
     }
 
     @Test
+    @DisplayName("NFR4: a 503 from the provider is PROVIDER_ERROR")
     void serverErrorIsProviderError() {
         server.stubFor(get(urlPathEqualTo("/search")).willReturn(aResponse().withStatus(503)));
         assertThatThrownBy(() -> geocoder.geocode("x"))
@@ -84,6 +110,7 @@ class NominatimGeocoderIT {
     }
 
     @Test
+    @DisplayName("NFR4: a 429 (usage limit) is RATE_LIMITED")
     void usageLimitIsRateLimited() {
         server.stubFor(get(urlPathEqualTo("/search")).willReturn(aResponse().withStatus(429)));
         assertThatThrownBy(() -> geocoder.geocode("x"))
@@ -91,12 +118,14 @@ class NominatimGeocoderIT {
     }
 
     @Test
+    @DisplayName("NFR4: a body that is not a result array is a provider error")
     void malformedBodyIsProviderError() {
-        server.stubFor(get(urlPathEqualTo("/search")).willReturn(okJson("{\"oops\":true}")));
+        server.stubFor(get(urlPathEqualTo("/search")).willReturn(okJson(fixture("search-malformed.json"))));
         assertThatThrownBy(() -> geocoder.geocode("x")).isInstanceOf(GeocodingUnavailableException.class);
     }
 
     @Test
+    @DisplayName("NFR4: at most one request per second reaches the provider")
     void enforcesOneRequestPerSecondLocally() {
         server.stubFor(get(urlPathEqualTo("/search")).willReturn(okJson("[]")));
         geocoder.geocode("a");
@@ -109,6 +138,7 @@ class NominatimGeocoderIT {
     }
 
     @Test
+    @DisplayName("NFR4: an unreachable provider is reported as unavailable")
     void unreachableProviderIsUnavailable() {
         server.stop();
         assertThatThrownBy(() -> geocoder.geocode("x")).isInstanceOf(GeocodingUnavailableException.class);

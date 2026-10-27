@@ -44,7 +44,7 @@ export function setup() {
 
 function body(station, size) {
   return {
-    stationCode: station, size, leaseHours: 24,
+    stationCode: station, size,
     sender: { name: 'Load Test', email: 'load@example.com', phone: '+351 910 000 000' },
     recipient: { name: 'Load Recipient', email: 'recipient@example.com', phone: '+351 920 000 000' },
   };

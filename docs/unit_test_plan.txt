@@ -1,0 +1,36 @@
+Do all tests independent form one another, and follow the anatomy Arrange, Act, Assert and the FIRST principles
+
+Inside a file src/test/java/pt/ua/deti/tqs/orbit/domain/CompartmentAllocationPolicyTest.java:
+Compartment allocation:
+- A test function where it tries to allocate an in service compartment with a parcel in state X for each parcel state possible except RETURNED (7 functions), and it should allocate successfully only if the old parcel state is EXPIRED, TO_RETURN, PICKED_UP or CANCELLED, otherwise it should fail
+- A test function where it tries to allocate an in service compartment with a parcel in state RETURNED for and another with the state READY_FOR_PICKUP, it should fail
+- A test function where it tries to allocate an in service compartment with a parcel in state TO_RETURN and another CREATED, it should fail
+- A test function where it tries to allocate an in service compartment with a parcel in state TO_RETURN and another ON_ITS_WAY, it should fail
+- A test function where it tries to allocate a compartment with no parcel inside, it should pass
+- A test function where it tries to allocate a compartment out of service, it should fail
+
+
+Inside a file src/test/java/pt/ua/deti/tqs/orbit/domain/DropOffWindowTest.java:
+Drop-off deadline:
+- A test function where it tries to drop off at the same time of the allocation, it should fail
+- A test function where it tries to drop off after the allocation but before the 10 working days after the allocation, it should allow
+- A test function where it tries to drop off exactly 10 working days after the allocation, it should allow
+- A test function where it tries to drop off after the 10 working days after the allocation date, it should fail
+
+
+Inside a file src/test/java/pt/ua/deti/tqs/orbit/domain/PickUpWindowTest.java:
+Pick-up deadline:
+- A test function where it tries to pick up after the drop off but before the 15 days after the drop off, it should allow
+- A test function where it tries to pick up exactly 15 days after the drop off date, it should allow
+- A test function where it tries to pick up after the 15 days after the drop off date and the state of the parcel is EXPIRED, it should allow
+- A test function where it tries to pick up after the 15 days after the drop off date and the state of the parcel is TO_RETURN, it should allow
+- A test function where it tries to pick up after the 15 days after the drop off date and the state of the parcel is RETURNED, it should not allow
+
+
+Inside a file src/test/java/pt/ua/deti/tqs/orbit/domain/CodesFormatTest.java:
+Drop-off code:
+- A test function where it makes all the process until the drop-off code is emitted and checks if its validity is equal to the drop-off deadline and its format is a 6-digit pin
+- A test function that simulates three tries to enter the drop-off code with 3 seconds between each try and checks if it blocks for an hour, try again 5 seconds after the third one and it should fail
+Pickup code:
+- A test function where it makes all the process until the pickup-off code is emitted and checks if its format is a 6-digit pin, then it simulates the parcel has expired, marked as to return because there’s another parcel for that compartment, and when the new parcel arrives, the old one is returned, its state changes to RETURNED and the code must be not valid anymore
+- A test function that simulates three tries to enter the pickup-off code with 3 seconds between each try and checks if it blocks for an hour, try again 5 seconds after the third one and it should fail

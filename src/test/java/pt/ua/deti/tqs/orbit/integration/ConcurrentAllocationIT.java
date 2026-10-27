@@ -2,10 +2,6 @@ package pt.ua.deti.tqs.orbit.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -15,29 +11,37 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import pt.ua.deti.tqs.orbit.support.AbstractIntegrationTest;
 
 /**
  * "Two partners must never get the same last compartment": many concurrent HTTP registrations against the real
  * server and database; exactly as many succeed as there are free compartments, the rest get 409 STATION_FULL.
+ *
+ * <p>This needs real HTTP ({@code TestRestTemplate}, one request per thread, released together by a latch): MockMvc
+ * would not exercise the servlet container's request threads, the connection pool and the database locks the way
+ * concurrent partners do.</p>
  */
+@DisplayName("Concurrent allocation — real server, 24 simultaneous registrations, real PostgreSQL")
 class ConcurrentAllocationIT extends AbstractIntegrationTest {
 
     private static final int REQUESTS = 24;
 
     private List<Integer> fireConcurrently(String body) throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> request = new HttpEntity<>(body, headers);
         CountDownLatch start = new CountDownLatch(1);
         try (ExecutorService pool = Executors.newFixedThreadPool(REQUESTS)) {
             List<Future<Integer>> futures = new ArrayList<>();
             for (int i = 0; i < REQUESTS; i++) {
                 futures.add(pool.submit(() -> {
                     start.await();
-                    HttpRequest req = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/parcels"))
-                            .header("Content-Type", "application/json")
-                            .POST(HttpRequest.BodyPublishers.ofString(body)).build();
-                    return http.send(req, HttpResponse.BodyHandlers.discarding()).statusCode();
+                    return restClient.postForEntity("/api/v1/parcels", request, String.class).getStatusCode().value();
                 }));
             }
             start.countDown();
@@ -50,12 +54,13 @@ class ConcurrentAllocationIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Compartment allocation: the last free compartment goes to exactly one of 24 partners")
     void lastCompartmentGoesToExactlyOnePartner() throws Exception {
-        register(FORUM, "M", "M-03", 24);
-        register(FORUM, "M", "M-07", 24);
-        register(FORUM, "M", "M-11", 24); // only M-15 left
+        register(FORUM, "M", "M-03");
+        register(FORUM, "M", "M-07");
+        register(FORUM, "M", "M-11"); // only M-15 left
 
-        Map<Integer, Long> byStatus = fireConcurrently(registerBody(FORUM, "M", null, 24)).stream()
+        Map<Integer, Long> byStatus = fireConcurrently(registerBody(FORUM, "M", null)).stream()
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
 
         assertThat(byStatus).containsEntry(201, 1L).containsEntry(409, (long) REQUESTS - 1);
@@ -66,16 +71,18 @@ class ConcurrentAllocationIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Compartment allocation: 24 partners choosing the same compartment, exactly one wins")
     void concurrentRequestsForTheSameChosenCompartment() throws Exception {
-        Map<Integer, Long> byStatus = fireConcurrently(registerBody(FORUM, "L", "L-16", 24)).stream()
+        Map<Integer, Long> byStatus = fireConcurrently(registerBody(FORUM, "L", "L-16")).stream()
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
         assertThat(byStatus).containsEntry(201, 1L).containsEntry(409, (long) REQUESTS - 1);
     }
 
     @Test
+    @DisplayName("Compartment allocation: 7 free compartments go to 7 partners, never twice")
     void freeCompartmentsAreSharedWithoutDuplicates() throws Exception {
         // Small: 7 free at Fórum Aveiro (S-06 out of service) -> 7 winners, all different compartments
-        Map<Integer, Long> byStatus = fireConcurrently(registerBody(FORUM, "S", null, 24)).stream()
+        Map<Integer, Long> byStatus = fireConcurrently(registerBody(FORUM, "S", null)).stream()
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
         assertThat(byStatus).containsEntry(201, 7L).containsEntry(409, (long) REQUESTS - 7);
         Integer distinct = jdbc.queryForObject("SELECT count(DISTINCT compartment_id) FROM parcel", Integer.class);

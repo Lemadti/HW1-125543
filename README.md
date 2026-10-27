@@ -101,7 +101,7 @@ pickup code "sent" to the recipient.
    distance, and pick a **radius** (any distance, or 1/2/5/10/20 km) to keep only the closest. *Show all stations*
    goes back to the full list. Click a station to see its free compartments.
 2. **Register (UC2):** go to `/register`, choose *Medium* and a station, then pick a green compartment and continue.
-   Fill in the lease and the contacts, then submit. The confirmation shows the **tracking code**, the **delivery code
+   Fill in the contacts, then submit. The confirmation shows the **tracking code**, the **delivery code
    (QR)** and the **drop-off PIN**.
 3. **Courier collects:** on `/courier`, paste the delivery code. The parcel becomes `ON_ITS_WAY`. You can also report
    a location here.
@@ -117,7 +117,7 @@ pickup code "sent" to the recipient.
    terminal offers *Use another compartment*, the new drop-off code arrives in the inbox, and the incident shows up on
    the operator page.
 9. **Time-based rules:** on `/demo`, use *+72 h* or *+15 days*. The clock moves forward and the deadline job runs
-   immediately: leases end (`CANCELLED`) and pickup windows end (`EXPIRED`).
+   immediately: drop-off deadlines pass (`CANCELLED`) and pickup windows end (`EXPIRED`).
 
 ---
 
@@ -194,7 +194,8 @@ and static analysis with SonarQube.
 
 ## 5. Parcel lifecycle (state machine)
 
-This follows `../StateMachine/StateMachineDiagram.png` and the report template.
+This follows `../StateMachine/StateMachineDiagram.png` and the report template, plus one transition added on request:
+**ON_ITS_WAY → CANCELLED** when the drop-off deadline passes (not in the diagram).
 
 ```
             ┌────────────► CANCELLED (end)
@@ -202,6 +203,7 @@ This follows `../StateMachine/StateMachineDiagram.png` and the report template.
  CREATED ───┤
             │ COLLECT (courier scans QR)
             └────────────► ON_ITS_WAY ──DEPOSIT (courier, door closed)──► READY_FOR_PICKUP
+                               └── DROP_OFF_DEADLINE_PASSED (system) ──► CANCELLED
                                                                             │        │
                                                PICK_UP (recipient) ◄────────┘        │ PICKUP_DEADLINE_PASSED (system)
                                                      │                               ▼
@@ -218,6 +220,7 @@ This follows `../StateMachine/StateMachineDiagram.png` and the report template.
 | CREATED | DROP_OFF_DEADLINE_PASSED | SYSTEM | CANCELLED |
 | CREATED | COLLECT | COURIER | ON_ITS_WAY |
 | ON_ITS_WAY | DEPOSIT | COURIER | READY_FOR_PICKUP |
+| ON_ITS_WAY | DROP_OFF_DEADLINE_PASSED | SYSTEM | CANCELLED |
 | READY_FOR_PICKUP | PICK_UP | RECIPIENT | PICKED_UP |
 | READY_FOR_PICKUP | PICKUP_DEADLINE_PASSED | SYSTEM | EXPIRED |
 | EXPIRED | PICK_UP | RECIPIENT | PICKED_UP |
@@ -248,8 +251,8 @@ All values live under `orbit.*` in `src/main/resources/application.yml` and are 
 | **Station search radius** | The **user chooses** the radius for each search: *Any distance* (default) or one of the configured options (1, 2, 5, 10, 20 km). The API accepts any `radiusKm` in (0, 20] km; anything else is **422 `INVALID_RADIUS`**. Without a search, the Find stations page lists **all stations** alphabetically. An address search returns at most 10 stations. | `orbit.search.radius-options-km`, `max-radius-km`, `max-results` | `StationRankingTest`, `ParcelLifecycleApiIT`, `FindStationsWebIT`, `01_find_locker.feature` |
 | **Station full** | No free compatible compartment: **409 `STATION_FULL`**. A chosen compartment that is already taken: **409 `COMPARTMENT_NOT_AVAILABLE`**. | | `ParcelLifecycleApiIT`, BDD |
 | **Two partners, last compartment** | Allocation locks the station row (`SELECT … FOR UPDATE`), and the partial unique index is a second line of defence. | `StationRepository.findByCodeForUpdate` | `ConcurrentAllocationIT` (24 concurrent HTTP requests) |
-| **Drop-off deadline (lease)** | The partner reserves the compartment for a **lease of 24, 48 or 72 h** (as in the mockups), starting now or up to 7 days ahead. The lease end is the drop-off deadline: a parcel still CREATED then is **CANCELLED by the system** and the compartment is released. | `orbit.rules.lease-hours-options`, `default-lease-hours`, `max-lease-start-ahead` | `DeadlineServiceTest`, `DeadlineAndReturnIT`, `06_deadlines.feature` |
-| **Price** | **3.00 EUR per started day** of lease, VAT included: 24 h = 3, 48 h = 6, 72 h = 9 EUR. | `orbit.rules.price-per-day`, `currency` | `PricingPolicyTest` |
+| **Drop-off deadline** | Drop-off allowed for **10 working days** (Monday to Friday, Lisbon time) **after the allocation**; there is no option to choose. The deadline keeps the time of day of the allocation, an allocation on a weekend starts counting on Monday, and public holidays are not considered. Drop-off is still allowed at the deadline itself. After it, a parcel that was not dropped off is **CANCELLED automatically** by the system and its compartment is released, whether it is still CREATED or already ON_ITS_WAY; the sender is notified (a collected parcel goes back to the sender with the courier). The deadline job runs every minute; a courier who enters the code after the deadline but before the job ran is refused (`409 DROP_OFF_DEADLINE_PASSED`) and the parcel is cancelled at that moment. A drop-off already in progress at the deadline (door open) is allowed to finish. The drop-off PIN is valid until this deadline. | `orbit.rules.drop-off-working-days`, `time-zone`; rule in `domain/DropOffWindow` | `DropOffWindowTest`, `CodesFormatTest`, `BusinessRulesTest`, `DeadlineServiceTest`, `ParcelStateMachineTest`, `DeadlineAndReturnIT`, `06_deadlines.feature` |
+| **Price** | **One flat price for every reservation: 3.00 EUR**, VAT included, whatever the station, size or compartment. | `orbit.rules.price`, `currency` | `PricingPolicyTest`, `BusinessRulesTest`, `02_register_parcel.feature` |
 | **Pickup deadline** | Pickup is allowed for **15 days after drop-off**. After that the parcel is **EXPIRED**, but the recipient can still collect it with the same code until it is removed (TO_RETURN → RETURNED). | `orbit.rules.pickup-window` | `DeadlineServiceTest`, `DeadlineAndReturnIT`, BDD |
 | **Delivery code** | `DLV-` + 12 random characters, shown as a **QR code** on the label. The courier scans it when collecting at the partner (CREATED → ON_ITS_WAY). | `CodeService` | `CodeServiceTest` |
 | **Tracking code** | `ORB-yyMMdd-NNNN` (Lisbon date + 4 digits), unique and public. | `CodeService` | `CodeServiceTest` |
@@ -293,7 +296,7 @@ Every error is `application/problem+json` with a stable machine-readable `code`:
 | 400 | `VALIDATION_FAILED` (with `errors{field: message}`), `MALFORMED_REQUEST` |
 | 404 | `STATION_NOT_FOUND`, `PARCEL_NOT_FOUND`, `COMPARTMENT_NOT_FOUND`, `ADDRESS_NOT_FOUND`, `DELIVERY_CODE_NOT_FOUND`, `SESSION_NOT_FOUND` |
 | 409 | `INVALID_TRANSITION`, `STATION_FULL`, `COMPARTMENT_NOT_AVAILABLE`, `NO_REPLACEMENT_AVAILABLE`, `NO_FAILURE_REPORTED`, `INVALID_STATE`, `DROP_OFF_DEADLINE_PASSED`, `CONCURRENT_UPDATE` |
-| 422 | `INVALID_RADIUS` (with `maxRadiusKm`), `INVALID_CODE` (with `remainingAttempts`), `INVALID_LEASE_DURATION`, `INVALID_LEASE_START`, `SIZE_MISMATCH`, `INVALID_ACTOR`, `ADDRESS_REQUIRED`, `INVALID_COORDINATES` |
+| 422 | `INVALID_RADIUS` (with `maxRadiusKm`), `INVALID_CODE` (with `remainingAttempts`), `SIZE_MISMATCH`, `INVALID_ACTOR`, `ADDRESS_REQUIRED`, `INVALID_COORDINATES` |
 | 429 | `TOO_MANY_ATTEMPTS` (with `lockedUntil`, `Retry-After` header) |
 | 503 | `GEOCODER_UNAVAILABLE` (with `reason`, `fallback: /api/v1/stations`, `Retry-After`), `HARDWARE_UNAVAILABLE` (with `assistancePhone`) |
 
@@ -322,17 +325,17 @@ curl "http://localhost:8080/api/v1/stations/nearby?address=Rua%20de%20Coimbra%20
 ```bash
 curl -X POST http://localhost:8080/api/v1/parcels -H 'Content-Type: application/json' -d '{
   "stationCode": "ORB-AVR-001", "size": "M", "compartmentCode": "M-07",
-  "leaseStart": "2026-10-25T10:00:00Z", "leaseHours": 48,
   "sender":    {"name": "Ana Silva", "email": "ana.silva@example.com", "phone": "+351 912 345 678"},
   "recipient": {"name": "João Santos",   "email": "joao.santos@example.com",   "phone": "+351 934 567 890"}}'
 ```
 
-`compartmentCode` and `leaseStart` are optional (defaults: first free compartment, now). `leaseHours` defaults to 48.
+`compartmentCode` is optional (default: first free compartment of that size). The drop-off deadline is always 10
+working days after the registration and the price is always the same.
 
 ```json
 { "trackingCode": "ORB-261025-7552", "state": "CREATED", "stationCode": "ORB-AVR-001", "stationName": "Fórum Aveiro",
-  "compartmentCode": "M-07", "size": "M", "leaseStart": "…", "leaseHours": 48, "dropOffDeadline": "…",
-  "price": 6.00, "currency": "EUR", "deliveryCode": "DLV-UMS2AMJBRPED", "dropOffCode": "991106" }
+  "compartmentCode": "M-07", "size": "M", "dropOffDeadline": "…",
+  "price": 3.00, "currency": "EUR", "deliveryCode": "DLV-UMS2AMJBRPED", "dropOffCode": "991106" }
 ```
 
 The drop-off PIN is returned only once, in this response. The database stores just its HMAC.
@@ -380,7 +383,7 @@ must handle, not client errors.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/config` | Public business parameters for the pages (lease options, price, radius options and maximum, assistance phone) |
+| GET | `/config` | Public business parameters for the pages (drop-off working days, price, radius options and maximum, assistance phone) |
 | GET / DELETE | `/demo/notifications` | Demo inbox *(demo mode only)* |
 | GET / POST / DELETE | `/demo/hardware/faults` | Inject `{"stationCode","compartmentCode","fault":"DOOR_WONT_OPEN\|DOOR_WONT_CLOSE\|UNREACHABLE"}` *(demo only)* |
 | GET | `/demo/clock` · POST `/demo/clock/advance {"hours":72}` · POST `/demo/clock/reset` | Clock fast-forward, which also runs the deadline job *(demo only)* |
@@ -424,7 +427,7 @@ must handle, not client errors.
 
 | Command | Runs | Needs |
 |---|---|---|
-| `./mvnw test` | **Unit and slice tests** (surefire, `*Test`): 197 tests | nothing (no Docker) |
+| `./mvnw test` | **Unit and slice tests** (surefire, `*Test`): 264 tests | nothing (no Docker) |
 | `./mvnw verify` | Everything above, plus **integration, functional (Playwright), accessibility and BDD** (failsafe, `*IT`): 88 more, and a merged JaCoCo report | Docker (Testcontainers starts `postgres:17-alpine`). Playwright downloads Chromium on first run. |
 | `./mvnw verify -Dit.test='*WebIT'` | Only the browser tests | Docker |
 | `./mvnw verify -Dit.test=CucumberIT` | Only the BDD features (report at `target/cucumber-report.html`) | Docker |
@@ -465,7 +468,7 @@ context cache). Each test resets the database and the fakes.
 
 | Suite | Tests | Result |
 |---|---|---|
-| Unit + slice | 197 | ✅ |
+| Unit + slice | 264 | ✅ |
 | Integration | 39 | ✅ |
 | Functional + accessibility | 28 | ✅ |
 | BDD (Cucumber) | 21 scenarios | ✅ |
@@ -523,8 +526,8 @@ The full file is `src/main/resources/application.yml`. The main keys:
 ```yaml
 orbit:
   assistance-phone: "+351 234 100 200"
-  rules:   { lease-hours-options: [24,48,72], default-lease-hours: 48, price-per-day: 3.00, currency: EUR,
-             pickup-window: 15d, max-lease-start-ahead: 7d, terminal-session-timeout: 5m, deadline-check-interval: 60s }
+  rules:   { drop-off-working-days: 10, price: 3.00, currency: EUR, time-zone: Europe/Lisbon,
+             pickup-window: 15d, terminal-session-timeout: 5m, deadline-check-interval: 60s }
   codes:   { pin-length: 6, max-failed-attempts: 3, lockout: 1h, hmac-secret: ${ORBIT_CODE_SECRET} }
   search:  { radius-options-km: [1, 2, 5, 10, 20], max-radius-km: 20.0, max-results: 10 }
   geocoding: { provider: nominatim|stub, base-url: https://nominatim.openstreetmap.org, country-codes: pt,
@@ -577,13 +580,14 @@ orbit/
   coordinates, prices in EUR, Portuguese postal codes and phone numbers, and times shown in Europe/Lisbon. Nominatim
   results are restricted to Portugal (`countrycodes=pt`). The mockups were drawn for Warsaw; only their layout and
   behaviour were kept.
-* **Lease vs. drop-off deadline:** the mockups sell a **24/48/72 h lease** (priced per day; 3.00 EUR/day here), while
-  the report template says "drop-off allowed up to 5 working days after the predicted delivery date". These are
-  reconciled by using the **lease end as the drop-off deadline**, which is configurable. The pickup window (15 days
-  after drop-off) follows the report.
-* **Drop-off deadline while ON_ITS_WAY:** the state diagram has no ON_ITS_WAY → CANCELLED transition, so the
-  automatic cancellation only applies to parcels still CREATED. A late courier can still drop off a parcel that is on
-  its way.
+* **Drop-off window and price:** the mockups sold a 24/48/72 h lease priced per day; the report now fixes the
+  drop-off window at **10 working days after the allocation** with no choice, and the price is one flat amount for
+  every parcel. The registration page shows both instead of the lease fields. Working days are Monday to Friday in
+  Lisbon time; public holidays are not considered. Migration `V3` drops the old `lease_start` and `lease_hours` columns.
+* **Drop-off deadline while ON_ITS_WAY:** the state diagram has no ON_ITS_WAY → CANCELLED transition; it was added
+  so that a parcel not dropped off on time is always cancelled automatically, also after collection. The courier
+  still has the packet and returns it to the sender. After the cancellation the drop-off code is no longer valid
+  (`422 INVALID_CODE`, which counts as a wrong attempt).
 * **Drop-off requires collection first:** per the diagram, READY_FOR_PICKUP is only reachable from ON_ITS_WAY. The
   courier must scan the QR (delivery code) before the terminal accepts the drop-off PIN, otherwise the result is 409.
 * **Recipient door failures:** the report proposes "replace the locker" for any door failure. For a **pickup** the
@@ -600,3 +604,7 @@ orbit/
   there are no accounts.
 * **Maps** are decorative (Leaflet + OSM tiles loaded from public CDNs). All information is also in text.
 * **Not done:** real SMS/e-mail, payments, a mobile app, return-to-sender logistics, multi-city support.
+
+
+## SonarQube token
+sqa_c1032fc9008480d40c988445f1fa2e8ac9f1f283

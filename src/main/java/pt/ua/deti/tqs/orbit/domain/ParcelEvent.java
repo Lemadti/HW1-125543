@@ -7,7 +7,7 @@ import java.util.Set;
 public enum ParcelEvent {
     /** Partner (or recipient) cancels a parcel that was not yet collected by the courier. */
     CANCEL(EnumSet.of(Actor.PARTNER, Actor.RECIPIENT)),
-    /** The drop-off deadline (end of the lease) passed before the courier collected the parcel. */
+    /** The drop-off deadline passed before the parcel was dropped off (whether or not the courier collected it). */
     DROP_OFF_DEADLINE_PASSED(EnumSet.of(Actor.SYSTEM)),
     /** Courier scans the delivery code (QR) at the partner: the parcel is in transit. */
     COLLECT(EnumSet.of(Actor.COURIER)),

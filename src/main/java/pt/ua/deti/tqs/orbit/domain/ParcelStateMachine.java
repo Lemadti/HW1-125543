@@ -22,6 +22,7 @@ public final class ParcelStateMachine {
         allow(ParcelState.CREATED, ParcelEvent.DROP_OFF_DEADLINE_PASSED, ParcelState.CANCELLED);
         allow(ParcelState.CREATED, ParcelEvent.COLLECT, ParcelState.ON_ITS_WAY);
         allow(ParcelState.ON_ITS_WAY, ParcelEvent.DEPOSIT, ParcelState.READY_FOR_PICKUP);
+        allow(ParcelState.ON_ITS_WAY, ParcelEvent.DROP_OFF_DEADLINE_PASSED, ParcelState.CANCELLED);
         allow(ParcelState.READY_FOR_PICKUP, ParcelEvent.PICK_UP, ParcelState.PICKED_UP);
         allow(ParcelState.READY_FOR_PICKUP, ParcelEvent.PICKUP_DEADLINE_PASSED, ParcelState.EXPIRED);
         allow(ParcelState.EXPIRED, ParcelEvent.PICK_UP, ParcelState.PICKED_UP);

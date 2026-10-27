@@ -80,6 +80,23 @@
         </dependency>
 
         <!-- ===================== Test ===================== -->
+        <!-- JUnit 5+ (Jupiter: API, parameterized tests, engine) and Mockito. Versions are managed by the
+             Spring Boot parent; they are also brought in by the test starters below, declared here explicitly. -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
@@ -88,6 +105,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- TestRestTemplate (real HTTP client against the running server): RestTemplate is an *optional* dependency
+             of spring-boot-resttestclient, so it must be declared explicitly (as in Lab 03). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-restclient</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

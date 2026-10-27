@@ -1,92 +1,129 @@
 package pt.ua.deti.tqs.orbit.functional;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThat;
 
-import com.microsoft.playwright.options.AriaRole;
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.AriaRole;
 import java.util.regex.Pattern;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import pt.ua.deti.tqs.orbit.domain.ParcelState;
+import pt.ua.deti.tqs.orbit.service.view.RegistrationResult;
 
-/** UC2 + UC5 on the web pages: the 3-step registration (as in the mockups), then tracking. */
+/** US2 + US5 on the web pages: the 3-step registration (as in the mockups), then tracking. */
+@DisplayName("Register (US2) and track (US5) — browser + real server + PostgreSQL")
 class RegisterAndTrackWebIT extends AbstractWebIT {
 
+    private Locator button(String name) {
+        return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(name));
+    }
+
+    private Locator link(String name) {
+        return page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName(name).setExact(true));
+    }
+
+    /** A labelled field inside a fieldset ("Sender contact", "Recipient contact"): the labels repeat in both. */
+    private Locator field(String group, String label) {
+        return page.getByRole(AriaRole.GROUP, new Page.GetByRoleOptions().setName(group)).getByLabel(label);
+    }
+
     @Test
+    @DisplayName("US2 + US5: a partner registers a medium parcel in three steps, then tracks it")
     void partnerRegistersAMediumParcelAndTracksIt() {
+        // step 1: size and station
         open("/register");
-        page.getByTestId("size-M").click();
-        page.getByTestId("address-input").fill("Rua de Coimbra 10, Aveiro");
-        page.getByTestId("search-button").click();
-        // all stations are listed alphabetically on load; wait until the search has ranked them by distance
-        assertThat(page.getByTestId("result-count")).hasText("5 matching stations nearby");
-        page.getByTestId("station-card").first().click();
+        page.getByRole(AriaRole.RADIO, new Page.GetByRoleOptions().setName("Medium")).click();
+        page.getByLabel("Where do you need a locker?").fill("Rua de Coimbra 10, Aveiro");
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Search").setExact(true)).click();
+        // every station is listed alphabetically on load; wait until the search has ranked them by distance
+        assertThat(page.getByText("5 matching stations nearby", new Page.GetByTextOptions().setExact(true))).isVisible();
+        page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Fórum Aveiro")).click();
 
         // step 2: choose a compartment in the front view
-        assertThat(page.getByTestId("station-title")).hasText("Fórum Aveiro");
-        page.getByTestId("cell-M-11").click();
-        assertThat(page.getByTestId("selection")).containsText("M-11 · Available to register");
-        page.getByTestId("continue").click();
+        assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Fórum Aveiro"))).isVisible();
+        button("M-11, Medium").click();
+        assertThat(page.getByText("M-11 · Available to register")).isVisible();
+        link("Register").click();
 
-        // step 3: lease and contacts
-        assertThat(page.getByTestId("submit")).isDisabled();
-        page.getByTestId("duration-72").click();
-        page.getByTestId("sender-name").fill("Ana Silva");
-        page.getByTestId("sender-email").fill("ana.silva@example.com");
-        page.getByTestId("sender-phone").fill("+351 912 345 678");
-        page.getByTestId("recipient-name").fill("João Santos");
-        page.getByTestId("recipient-email").fill("joao.santos@example.com");
-        page.getByTestId("recipient-phone").fill("+351 934 567 890");
-        assertThat(page.getByTestId("price")).hasText("9.00 EUR");
-        page.getByTestId("terms").check();
-        page.getByTestId("submit").click();
+        // step 3: contacts (fixed drop-off window and price)
+        assertThat(button("Submit registration")).isDisabled();
+        assertThat(page.getByText("10 working days from now")).isVisible();
+        field("Sender contact", "Full name").fill("Ana Silva");
+        field("Sender contact", "Email address").fill("ana.silva@example.com");
+        field("Sender contact", "Phone number").fill("+351 912 345 678");
+        field("Recipient contact", "Full name").fill("João Santos");
+        field("Recipient contact", "Email address").fill("joao.santos@example.com");
+        field("Recipient contact", "Phone number").fill("+351 934 567 890");
+        assertThat(page.getByText("3.00 EUR", new Page.GetByTextOptions().setExact(true))).isVisible();
+        page.getByLabel("I agree to the locker reservation terms").check();
+        button("Submit registration").click();
 
-        assertThat(page.getByTestId("confirmation")).containsText("Compartment M-11 reserved at Fórum Aveiro");
+        // the user sees the confirmation and the codes...
+        assertThat(page.getByText("Compartment M-11 reserved at Fórum Aveiro")).isVisible();
         assertThat(page.getByTestId("drop-off-code")).hasText(Pattern.compile("\\d{6}"));
         String trackingCode = page.getByTestId("tracking-code").textContent();
-        assertThat(trackingCode).matches("ORB-\\d{6}-\\d{4}");
+        Assertions.assertThat(trackingCode).matches("ORB-\\d{6}-\\d{4}");
+        // ...and the back door shows what was stored
+        Assertions.assertThat(stateOf(trackingCode)).isEqualTo(ParcelState.CREATED);
+        Assertions.assertThat(compartmentOf(trackingCode)).isEqualTo("M-11");
 
-        page.getByTestId("track-link").click();
-        assertThat(page.getByTestId("tracking-title")).hasText("Your parcel is registered.");
-        assertThat(page.getByTestId("compartment")).hasText("M-11 · Medium");
-        assertThat(page.getByTestId("timeline")).containsText("Registration created");
+        // US5: tracking
+        page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Track parcel")).click();
+        assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setLevel(1)))
+                .hasText("Your parcel is registered.");
+        assertThat(page.getByText("M-11 · Medium")).isVisible();
+        assertThat(page.getByText("Registration created")).isVisible();
     }
 
     @Test
+    @DisplayName("Compartment allocation: a reserved compartment cannot be chosen")
     void reservedCompartmentCannotBeChosen() {
-        register(FORUM, "M", "M-07", 24);
+        register(FORUM, "M", "M-07");
+
         open("/register/ORB-AVR-001?size=M");
-        page.getByTestId("cell-M-07").click();
-        assertThat(page.getByTestId("selection")).containsText("Reserved");
-        assertThat(page.getByTestId("continue")).hasCount(0);
+        button("M-07, Medium").click();
+
+        assertThat(page.getByText("M-07 · Reserved")).isVisible();
+        assertThat(link("Register")).hasCount(0);
     }
 
     @Test
+    @DisplayName("US2: an invalid email is reported next to the field")
     void invalidEmailIsReportedNextToTheField() {
         open("/register/ORB-AVR-001/M-03?size=M");
-        page.getByTestId("sender-email").fill("not-an-email");
-        page.getByTestId("sender-name").focus();
-        assertThat(page.locator("#s-email-err")).hasText("Please enter a valid email address.");
-        assertThat(page.getByTestId("sender-email")).hasAttribute("aria-invalid", "true");
+        field("Sender contact", "Email address").fill("not-an-email");
+        field("Sender contact", "Full name").focus();
+
+        assertThat(page.getByText("Please enter a valid email address.")).isVisible();
+        assertThat(field("Sender contact", "Email address")).hasAttribute("aria-invalid", "true");
     }
 
     @Test
+    @DisplayName("US5: an unknown tracking code is reported to the user")
     void unknownTrackingCodeShowsAnError() {
         open("/tracking");
-        page.getByTestId("tracking-input").fill("ORB-261024-071X");
-        page.getByTestId("track-button").click();
-        assertThat(page.getByTestId("tracking-error")).containsText("Invalid tracking code");
+        page.getByLabel("Tracking code").fill("ORB-261024-071X");
+        button("Track parcel").click();
+
+        assertThat(page.getByRole(AriaRole.ALERT)).containsText("Invalid tracking code");
     }
 
     @Test
+    @DisplayName("US5: the recipient can cancel before the courier collects the parcel")
     void recipientCanCancelBeforeCollection() {
-        String tc = register(FORUM, "S", null, 24).get("trackingCode").asString();
+        RegistrationResult reg = register(FORUM, "S", null);
         open("/tracking");
-        page.getByTestId("tracking-input").fill(tc);
-        page.getByTestId("track-button").click();
+        page.getByLabel("Tracking code").fill(reg.trackingCode());
+        button("Track parcel").click();
         assertThat(page.getByTestId("state-badge")).hasText("Created");
 
         page.onDialog(d -> d.accept());
-        page.getByTestId("cancel-parcel").click();
+        button("Cancel this parcel").click();
+
         assertThat(page.getByTestId("state-badge")).hasText("Cancelled");
+        Assertions.assertThat(stateOf(reg.trackingCode())).isEqualTo(ParcelState.CANCELLED);
+        Assertions.assertThat(lastActorOf(reg.trackingCode())).isEqualTo("RECIPIENT");
     }
 }

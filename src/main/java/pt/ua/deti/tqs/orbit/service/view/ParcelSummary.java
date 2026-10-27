@@ -14,7 +14,7 @@ import pt.ua.deti.tqs.orbit.domain.ParcelState;
  * @param senderName      sender name
  * @param recipientName   recipient name
  * @param createdAt       registration time
- * @param dropOffDeadline end of the lease
+ * @param dropOffDeadline end of the drop-off window
  * @param pickupDeadline  end of the pickup window, or null
  */
 public record ParcelSummary(String trackingCode, ParcelState state, String stationCode, String stationName,

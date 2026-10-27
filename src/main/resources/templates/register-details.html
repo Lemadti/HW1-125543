@@ -8,7 +8,7 @@
     <div>
       <div class="eyebrow">Register a locker</div>
       <h1 class="page-title">Make it yours.</h1>
-      <p class="page-sub">Set your lease and add contact details. We'll take care of the notifications.</p>
+      <p class="page-sub">Add the contact details. We'll take care of the notifications.</p>
     </div>
     <div th:replace="~{fragments/stepper :: steps(3)}"></div>
   </div>
@@ -30,25 +30,15 @@
       </div>
       <hr class="divider">
       <div class="form-grid-2">
-        <div><div class="muted tiny">Lease duration</div><div class="strong" id="sum-duration">48 hours</div></div>
+        <div><div class="muted tiny">Drop-off window</div><div class="strong" id="sum-duration">10 working days</div></div>
         <div><div class="muted tiny">Drop-off deadline</div><div class="strong" id="sum-expires">–</div></div>
       </div>
     </aside>
 
     <form class="card" id="reg-form" novalidate style="padding:0" aria-labelledby="form-title">
       <div style="padding:22px 22px 6px">
-        <div class="row-between"><h2 class="card-title" id="form-title" style="font-size:17px">Lease &amp; contact details</h2><span class="muted tiny">* Required fields</span></div>
-        <div class="form-grid-2" style="margin-top:16px">
-          <div>
-            <label for="lease-start">Lease start (Lisbon time) *</label>
-            <input id="lease-start" class="input" type="datetime-local" required data-testid="lease-start">
-          </div>
-          <div>
-            <span class="label" id="dur-label">Duration *</span>
-            <div class="segmented" role="radiogroup" aria-labelledby="dur-label" id="durations"></div>
-          </div>
-        </div>
-        <div class="callout callout-violet small" style="margin-top:12px;padding:10px 12px" id="lease-info" aria-live="polite"></div>
+        <div class="row-between"><h2 class="card-title" id="form-title" style="font-size:17px">Contact details</h2><span class="muted tiny">* Required fields</span></div>
+        <div class="callout callout-violet small" style="margin-top:16px;padding:10px 12px" id="lease-info" aria-live="polite" data-testid="drop-off-window"></div>
         <hr class="divider">
         <fieldset style="border:0;padding:0;margin:0">
           <legend class="row strong" style="margin-bottom:10px"><svg width="16" height="16" style="color:var(--accent)" aria-hidden="true"><use href="/img/icons.svg#user"/></svg>Sender contact</legend>
@@ -68,13 +58,13 @@
           <p class="muted tiny row" style="margin-top:10px"><svg width="14" height="14" aria-hidden="true"><use href="/img/icons.svg#info"/></svg>The recipient will receive their pickup code by email and SMS when the parcel arrives.</p>
         </fieldset>
         <hr class="divider">
-        <label class="checkbox"><input type="checkbox" id="terms" data-testid="terms"> I agree to the locker lease terms and privacy policy. *</label>
+        <label class="checkbox"><input type="checkbox" id="terms" data-testid="terms"> I agree to the locker reservation terms and privacy policy. *</label>
         <div id="form-alert" class="hidden" style="margin-top:12px" role="alert"></div>
       </div>
       <div class="row-between" style="border-top:1px solid var(--border);padding:16px 22px;margin-top:14px">
         <div>
-          <div class="muted tiny" id="price-line">2 days × 3.00 EUR · VAT included</div>
-          <div style="font-size:22px;font-weight:700" id="price" data-testid="price">6.00 EUR</div>
+          <div class="muted tiny" id="price-line">Flat price · VAT included</div>
+          <div style="font-size:22px;font-weight:700" id="price" data-testid="price">3.00 EUR</div>
           <div class="tiny" id="complete-hint" style="color:var(--text-2)">Add recipient details and accept the terms to continue.</div>
         </div>
         <button class="btn btn-green btn-lg" type="submit" id="submit" data-testid="submit" disabled>

@@ -127,13 +127,14 @@ public interface ParcelRepository extends JpaRepository<Parcel, Long> {
     List<Parcel> findByCompartmentAndStateIn(Compartment compartment, Collection<ParcelState> states);
 
     /**
-     * Parcels in a state whose drop-off deadline has passed.
+     * Parcels in one of the states whose drop-off deadline has passed (drop-off is still allowed at the deadline
+     * itself).
      *
-     * @param state    the state (CREATED)
-     * @param deadline the current time
-     * @return the parcels
+     * @param states the states (CREATED, ON_ITS_WAY)
+     * @param now    the current time
+     * @return the parcels whose deadline is before {@code now}
      */
-    List<Parcel> findByStateAndDropOffDeadlineLessThanEqual(ParcelState state, Instant deadline);
+    List<Parcel> findByStateInAndDropOffDeadlineBefore(Collection<ParcelState> states, Instant now);
 
     /**
      * Parcels in a state whose pickup deadline has passed.

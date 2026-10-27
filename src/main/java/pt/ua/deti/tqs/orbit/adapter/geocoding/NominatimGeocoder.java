@@ -121,7 +121,7 @@ public class NominatimGeocoder implements GeocoderPort {
 
     private synchronized void acquirePermit(String address) {
         Instant now = clock.instant();
-        if (lastCall != Instant.MIN && now.isBefore(lastCall.plus(minInterval))) {
+        if (!Instant.MIN.equals(lastCall) && now.isBefore(lastCall.plus(minInterval))) {
             log.warn("GEOCODE q=\"{}\" -> RATE_LIMITED locally (min interval {})", address, minInterval);
             throw new GeocodingUnavailableException(Reason.RATE_LIMITED,
                     "Too many address searches, please retry in a moment");

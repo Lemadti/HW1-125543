@@ -1,19 +1,27 @@
-Feature: Register a parcel (UC2)
-  As a partner, I want to register a parcel of a given size for a station and a recipient,
-  so that a compartment is reserved for my courier.
+Feature: Register a parcel (US2)
+  As a partner, I want to register a parcel of a specific size for a chosen station and recipient contact,
+  so that I can have a reserved compartment for my courier to drop the recipient's packet.
 
-  Scenario: A compatible compartment is reserved
-    When the partner registers a "M" parcel at station "ORB-AVR-001" for 48 hours
-    Then the parcel is "CREATED"
-    And a "M" compartment is reserved for it
-    And the partner receives a tracking code, a delivery code and a 6-digit drop-off code
-    And the price is 6.00 EUR
+  Scenario: The partner reserves a free compartment of the parcel size
+    Given I am registering a "Medium" parcel at station "Fórum Aveiro"
+    When I choose compartment "M-11"
+    And I fill in the sender and recipient contacts and accept the terms
+    Then I should see "3.00 EUR"
+    When I submit the registration
+    Then I should see a message saying "Compartment M-11 reserved at Fórum Aveiro"
+    And I should see a tracking code, a delivery code and a 6-digit drop-off PIN
+    And the parcel should be stored as "CREATED" in compartment "M-11"
+    And the drop-off deadline should be 10 working days after the registration
 
-  Scenario: The station has no free compartment of that size
+  Scenario: A reserved compartment cannot be chosen
+    Given compartment "M-07" of station "ORB-AVR-001" is reserved
+    And I am registering a "Medium" parcel at station "Fórum Aveiro"
+    When I choose compartment "M-07"
+    Then I should see "M-07 · Reserved"
+    And I should not be able to continue the registration
+
+  Scenario: A station without a free compartment of that size is not offered
     Given all "L" compartments of station "ORB-AVR-001" are reserved
-    When the partner registers a "L" parcel at station "ORB-AVR-001" for 24 hours
-    Then the request is rejected with status 409 and code "STATION_FULL"
-
-  Scenario: An invalid lease duration is rejected
-    When the partner registers a "S" parcel at station "ORB-AVR-001" for 36 hours
-    Then the request is rejected with status 422 and code "INVALID_LEASE_DURATION"
+    When I look for a "Large" compartment near "Rua de Coimbra 10, Aveiro"
+    Then I should see "4 matching stations nearby"
+    And "Fórum Aveiro" should not be listed

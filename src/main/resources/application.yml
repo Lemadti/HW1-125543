@@ -47,12 +47,11 @@ logging:
 orbit:
   assistance-phone: "+351 234 100 200"
   rules:
-    lease-hours-options: [24, 48, 72]   # drop-off window chosen by the partner (lease)
-    default-lease-hours: 48
-    price-per-day: 3.00                # per started day of lease, VAT included
+    drop-off-working-days: 10          # drop-off allowed for 10 working days (Mon-Fri) after the allocation
+    price: 3.00                        # same price for every reservation, VAT included
     currency: EUR
+    time-zone: Europe/Lisbon           # used to count working days
     pickup-window: 15d                 # pickup allowed for 15 days after drop-off
-    max-lease-start-ahead: 7d
     terminal-session-timeout: 5m       # time to close the door after it opened
     deadline-check-interval: 60s
   codes:

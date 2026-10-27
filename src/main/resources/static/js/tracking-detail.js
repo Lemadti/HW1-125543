@@ -23,7 +23,7 @@
     switch (p.state) {
       case 'CREATED':
       case 'ON_ITS_WAY':
-        return `<div class="eyebrow">Delivery to the locker by</div><div class="eta-big">${O.fmtDateTime(p.dropOffDeadline, false)}</div><div class="muted small">Lease of ${p.leaseHours} hours</div>`;
+        return `<div class="eyebrow">Delivery to the locker by</div><div class="eta-big">${O.fmtDateTime(p.dropOffDeadline, false)}</div><div class="muted small">Drop-off window of 10 working days</div>`;
       case 'READY_FOR_PICKUP':
         return `<div class="eyebrow">Pick up before</div><div class="eta-big">${O.fmtDateTime(p.pickupDeadline, false)}</div><div class="muted small">Use the pickup code sent by SMS and email</div>`;
       case 'EXPIRED':

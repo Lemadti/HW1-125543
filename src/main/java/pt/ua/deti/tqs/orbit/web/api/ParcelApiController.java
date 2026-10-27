@@ -44,7 +44,7 @@ public class ParcelApiController {
     /**
      * {@code POST /api/v1/parcels}: registers a parcel (UC2).
      *
-     * @param request station, size, lease and contacts
+     * @param request station, size and contacts
      * @return 201 Created with a Location header and the registration result
      */
     @PostMapping
@@ -52,7 +52,7 @@ public class ParcelApiController {
             description = "201 with the tracking code, the delivery code (QR) and the drop-off PIN to print on the "
                     + "label. 409 STATION_FULL / COMPARTMENT_NOT_AVAILABLE, 422 for rule violations.")
     public ResponseEntity<RegistrationResult> register(@Valid @RequestBody RegisterParcelRequest request) {
-        RegistrationResult result = parcels.register(request.toCommand(properties.rules().defaultLeaseHours()));
+        RegistrationResult result = parcels.register(request.toCommand());
         return ResponseEntity.created(URI.create("/api/v1/parcels/" + result.trackingCode())).body(result);
     }
 

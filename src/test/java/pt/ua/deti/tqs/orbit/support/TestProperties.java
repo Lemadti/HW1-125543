@@ -13,8 +13,8 @@ public final class TestProperties {
 
     public static OrbitProperties defaults() {
         return new OrbitProperties(
-                new OrbitProperties.Rules(List.of(24, 48, 72), 48, new BigDecimal("3.00"), "EUR", Duration.ofDays(15),
-                        Duration.ofDays(7), Duration.ofMinutes(5)),
+                new OrbitProperties.Rules(10, new BigDecimal("3.00"), "EUR", "Europe/Lisbon", Duration.ofDays(15),
+                        Duration.ofMinutes(5)),
                 new OrbitProperties.Codes(6, 3, Duration.ofHours(1), "test-secret"),
                 new OrbitProperties.Search(List.of(1.0, 2.0, 5.0, 10.0, 20.0), 20.0, 10),
                 new OrbitProperties.Geocoding("stub", "http://localhost", "test", "pt", Duration.ofSeconds(1),

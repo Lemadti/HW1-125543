@@ -22,7 +22,7 @@
     PICK_UP: 'PICKED_UP', PICKUP_DEADLINE_PASSED: 'EXPIRED', MARK_TO_RETURN: 'TO_RETURN', REMOVE: 'RETURNED'
   };
   const EVENT_HINT = {
-    CANCEL: 'Cancellation by the partner or recipient', DROP_OFF_DEADLINE_PASSED: 'automatic when the lease ends',
+    CANCEL: 'Cancellation by the partner or recipient', DROP_OFF_DEADLINE_PASSED: 'automatic when the drop-off deadline passes',
     COLLECT: 'Courier scans the QR code', DEPOSIT: 'Courier drop-off with door confirmed closed',
     PICK_UP: 'Recipient enters the pickup code', PICKUP_DEADLINE_PASSED: 'automatic when the pickup window ends',
     MARK_TO_RETURN: 'Operator, or automatic when the compartment is re-allocated', REMOVE: 'Courier on next drop-off, or operator removal'
@@ -106,8 +106,8 @@
     $('contacts').innerHTML = contact('SENDER', p.sender) + contact('RECIPIENT', p.recipient);
     $('lease').innerHTML = `
       <div><div class="muted tiny">Parcel size (H × W × D)</div><div class="strong small">${p.size} · ${O.SIZE_DIMS[p.size]}</div></div>
-      <div><div class="muted tiny">Lease starts</div><div class="strong small">${O.fmtDateTime(p.leaseStart)}</div></div>
-      <div><div class="muted tiny">${p.pickupDeadline ? 'Pickup deadline' : `Drop-off deadline (${p.leaseHours} h lease)`}</div><div class="strong small">${O.fmtDateTime(p.pickupDeadline || p.dropOffDeadline)}</div></div>`;
+      <div><div class="muted tiny">Allocated</div><div class="strong small">${O.fmtDateTime(p.createdAt)}</div></div>
+      <div><div class="muted tiny">${p.pickupDeadline ? 'Pickup deadline' : 'Drop-off deadline'}</div><div class="strong small">${O.fmtDateTime(p.pickupDeadline || p.dropOffDeadline)}</div></div>`;
     $('location').innerHTML = p.lastLocation
       ? `${O.icon('truck')}<div><div class="strong">${O.esc(p.lastLocation.label)}</div><div class="tiny">Last scan: ${O.fmtDateTime(p.lastLocation.at, false)}</div></div>`
       : `${O.icon('info')}<div>No location scans yet.</div>`;
@@ -125,4 +125,5 @@
     stationParcels(p);
   }
   load();
+  setInterval(load, 60000); // NFR7
 })();

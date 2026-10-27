@@ -15,16 +15,14 @@ import pt.ua.deti.tqs.orbit.domain.ParcelState;
  * @param stationName     station name
  * @param compartmentCode reserved compartment
  * @param size            parcel size
- * @param leaseStart      start of the lease
- * @param leaseHours      lease duration
- * @param dropOffDeadline end of the lease
+ * @param dropOffDeadline end of the drop-off window (also the validity of the drop-off PIN)
  * @param price           price charged
  * @param currency        currency code
  * @param deliveryCode    QR content for the label
  * @param dropOffCode     6-digit drop-off PIN for the label
  */
 public record RegistrationResult(String trackingCode, ParcelState state, String stationCode, String stationName,
-                                    String compartmentCode, CompartmentSize size, Instant leaseStart, int leaseHours,
+                                    String compartmentCode, CompartmentSize size,
                                     Instant dropOffDeadline, BigDecimal price, String currency, String deliveryCode,
                                     String dropOffCode) {
 }
